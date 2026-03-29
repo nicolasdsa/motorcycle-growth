@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "motorcycle-growth"
+version = "0.1.0"
+description = "Public health data project for motorcycle fleet growth and trauma outcomes in Brazil."
+authors = ["Project Contributors"]
+readme = "README.md"
+packages = [{ include = "motorcycle_growth", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.0"
+
+[tool.poetry.scripts]
+motorcycle-growth = "motorcycle_growth.cli:main"
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
