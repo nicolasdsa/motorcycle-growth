@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class DirectoryStatus:
+    """Status information for an expected project directory."""
+
+    name: str
+    path: Path
+    exists: bool
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SRC_DIR = PROJECT_ROOT / "src"
@@ -35,3 +46,11 @@ def ensure_project_directories() -> None:
     """Create the main project directories when they do not exist."""
     for path in PROJECT_DIRECTORIES.values():
         path.mkdir(parents=True, exist_ok=True)
+
+
+def get_directory_statuses() -> list[DirectoryStatus]:
+    """Return the existence status for the main project directories."""
+    return [
+        DirectoryStatus(name=name, path=path, exists=path.exists())
+        for name, path in PROJECT_DIRECTORIES.items()
+    ]

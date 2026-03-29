@@ -2,6 +2,19 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Python: Check Project Structure",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["check-project"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "Python: Show Project Paths",
       "type": "python",
       "request": "launch",

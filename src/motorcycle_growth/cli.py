@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import logging
 
-from motorcycle_growth.config.paths import PROJECT_DIRECTORIES
+from motorcycle_growth.config import get_directory_statuses
+from motorcycle_growth.logging_utils import configure_logging, get_logger
 
-
-def configure_logging() -> None:
-    """Configure a simple logging format for local commands."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+LOGGER = get_logger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,11 +15,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Utility commands for the motorcycle growth project."
     )
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser(
         "show-paths",
         help="Display the main project directories.",
+    )
+    subparsers.add_parser(
+        "check-project",
+        help="Display project directories and verify that the expected folders exist.",
     )
 
     return parser
@@ -30,13 +31,37 @@ def build_parser() -> argparse.ArgumentParser:
 
 def show_paths() -> None:
     """Log the current project directory map."""
-    logger = logging.getLogger(__name__)
-
-    for name, path in PROJECT_DIRECTORIES.items():
-        logger.info("%s=%s", name, path)
+    for directory_status in get_directory_statuses():
+        LOGGER.info("%s=%s", directory_status.name, directory_status.path)
 
 
-def main() -> None:
+def check_project() -> int:
+    """Check whether the expected project directories exist."""
+    missing_directories = []
+
+    for directory_status in get_directory_statuses():
+        status_label = "OK" if directory_status.exists else "MISSING"
+        LOGGER.info(
+            "[%s] %s=%s",
+            status_label,
+            directory_status.name,
+            directory_status.path,
+        )
+        if not directory_status.exists:
+            missing_directories.append(directory_status)
+
+    if missing_directories:
+        LOGGER.error(
+            "Project structure check failed. Missing directories: %s",
+            ", ".join(item.name for item in missing_directories),
+        )
+        return 1
+
+    LOGGER.info("Project structure check passed.")
+    return 0
+
+
+def main() -> int:
     """Run the project CLI."""
     configure_logging()
     parser = build_parser()
@@ -44,10 +69,13 @@ def main() -> None:
 
     if args.command == "show-paths":
         show_paths()
-        return
+        return 0
 
-    parser.print_help()
+    if args.command == "check-project":
+        return check_project()
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -8,6 +8,7 @@ This repository currently contains the initial project scaffold:
 
 - `src`-based Python package
 - Poetry configuration
+- Initial data pipeline dependencies
 - Data, output, notebook, and test directories
 - VS Code launch settings for future pipeline and dashboard entry points
 
@@ -29,7 +30,7 @@ poetry shell
 4. Run the basic paths CLI:
 
 ```bash
-poetry run motorcycle-growth show-paths
+poetry run motorcycle-growth check-project
 ```
 
 ## Project structure
