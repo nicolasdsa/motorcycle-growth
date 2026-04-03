@@ -28,6 +28,19 @@ notebooks/.ipynb_checkpoints/
 # Project data
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/README.md
+!data/raw/*/
+!data/raw/*/.gitkeep
+data/raw/.cache/
+data/raw/**/*.csv
+data/raw/**/*.dbc
+data/raw/**/*.dbf
+data/raw/**/*.ods
+data/raw/**/*.parquet
+data/raw/**/*.txt
+data/raw/**/*.xls
+data/raw/**/*.xlsx
+data/raw/**/*.zip
 data/interim/*
 !data/interim/.gitkeep
 data/processed/*

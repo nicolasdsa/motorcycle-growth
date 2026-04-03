@@ -28,6 +28,58 @@
       "justMyCode": true
     },
     {
+      "name": "Python: Show Data Catalog",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["show-data-catalog"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: Check Raw Data Acquisition",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["acquire-raw-data", "--check-only"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: Acquire Raw Data",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["acquire-raw-data"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: Acquire Raw Data (SIH Example)",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["acquire-raw-data", "--sih-year", "2025", "--sih-month", "1", "--sih-uf", "SP"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "Python: Pipeline Placeholder",
       "type": "python",
       "request": "launch",

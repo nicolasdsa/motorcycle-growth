@@ -10,6 +10,7 @@ DEFAULT_LOG_FORMAT = "%(levelname)s: %(message)s"
 def configure_logging(level: int = logging.INFO) -> None:
     """Configure application logging for local scripts and CLIs."""
     logging.basicConfig(level=level, format=DEFAULT_LOG_FORMAT)
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 
 def get_logger(name: str) -> logging.Logger:

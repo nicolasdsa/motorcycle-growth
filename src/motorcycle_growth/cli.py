@@ -5,7 +5,14 @@ from __future__ import annotations
 import argparse
 
 from motorcycle_growth.config import get_directory_statuses
+from motorcycle_growth.data_catalog import get_data_sources
 from motorcycle_growth.logging_utils import configure_logging, get_logger
+from motorcycle_growth.raw_data import (
+    AcquisitionOptions,
+    AcquisitionStatus,
+    build_summary,
+    run_raw_data_acquisition,
+)
 
 LOGGER = get_logger(__name__)
 
@@ -24,6 +31,60 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "check-project",
         help="Display project directories and verify that the expected folders exist.",
+    )
+    subparsers.add_parser(
+        "show-data-catalog",
+        help="Display the planned raw data sources and their ingestion status.",
+    )
+    acquire_raw_data_parser = subparsers.add_parser(
+        "acquire-raw-data",
+        help="Download verified raw files and validate manual raw inputs.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Only inspect raw-data requirements without attempting downloads.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--senatran-year",
+        type=int,
+        help="Prefer one SENATRAN year page when discovering the fleet spreadsheet.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--ibge-year",
+        type=int,
+        help="Prefer one IBGE population year when discovering the spreadsheet.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--sim-year",
+        type=int,
+        help="Prefer one SIM resource year when discovering the mortality file.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--sim-format",
+        choices=("csv", "xml"),
+        default="csv",
+        help="Preferred SIM resource format for automated discovery. Default: csv.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--sih-year",
+        type=int,
+        help="SIH/SUS year for one official competence file.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--sih-month",
+        type=int,
+        help="SIH/SUS month for one official competence file.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--sih-uf",
+        help="SIH/SUS UF code for one official competence file, for example SP.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--cache-ttl-hours",
+        type=int,
+        default=24,
+        help="Discovery cache TTL in hours. Default: 24.",
     )
 
     return parser
@@ -61,6 +122,72 @@ def check_project() -> int:
     return 0
 
 
+def show_data_catalog() -> None:
+    """Log the planned data sources for the project."""
+    for data_source in get_data_sources():
+        LOGGER.info(
+            "[%s] %s | institution=%s | raw_dir=%s",
+            data_source.automation_level,
+            data_source.name,
+            data_source.institution,
+            data_source.raw_directory_relative,
+        )
+        LOGGER.info("purpose=%s", data_source.purpose)
+        LOGGER.info("unit=%s", data_source.unit_of_analysis)
+        LOGGER.info("geo_key=%s", data_source.expected_geographic_key)
+        LOGGER.info("time_key=%s", data_source.expected_time_key)
+        LOGGER.info("automation_notes=%s", data_source.automation_notes)
+
+
+def acquire_raw_data(
+    *,
+    check_only: bool,
+    options: AcquisitionOptions | None = None,
+) -> int:
+    """Run raw data acquisition checks and verified downloads."""
+    effective_options = options or AcquisitionOptions()
+    records = run_raw_data_acquisition(
+        download_enabled=not check_only,
+        options=effective_options,
+    )
+
+    for record in records:
+        log_level = (
+            LOGGER.error
+            if record.status in {AcquisitionStatus.MISSING, AcquisitionStatus.FAILED}
+            else LOGGER.warning
+            if record.status
+            in {
+                AcquisitionStatus.DOWNLOAD_AVAILABLE,
+                AcquisitionStatus.REQUIRES_CONFIGURATION,
+            }
+            else LOGGER.info
+        )
+        log_level(
+            "[%s] %s | %s",
+            record.status,
+            record.dataset_id,
+            record.message,
+        )
+
+    summary = build_summary(records)
+    LOGGER.info(
+        (
+            "Raw acquisition summary: total=%s present=%s downloaded=%s "
+            "download_available=%s missing=%s failed=%s requires_configuration=%s"
+        ),
+        summary.total,
+        summary.present,
+        summary.downloaded,
+        summary.download_available,
+        summary.missing,
+        summary.failed,
+        summary.requires_configuration,
+    )
+
+    return 1 if summary.has_issues else 0
+
+
 def main() -> int:
     """Run the project CLI."""
     configure_logging()
@@ -73,6 +200,26 @@ def main() -> int:
 
     if args.command == "check-project":
         return check_project()
+
+    if args.command == "show-data-catalog":
+        show_data_catalog()
+        return 0
+
+    if args.command == "acquire-raw-data":
+        options = AcquisitionOptions(
+            senatran_year=args.senatran_year,
+            ibge_year=args.ibge_year,
+            sim_year=args.sim_year,
+            sim_format=args.sim_format,
+            sih_year=args.sih_year,
+            sih_month=args.sih_month,
+            sih_uf=args.sih_uf.upper() if args.sih_uf else None,
+            cache_ttl_hours=args.cache_ttl_hours,
+        )
+        return acquire_raw_data(
+            check_only=args.check_only,
+            options=options,
+        )
 
     return 0
 
