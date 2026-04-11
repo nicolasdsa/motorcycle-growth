@@ -5,11 +5,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
-import unicodedata
 
 import pandas as pd
 
 from motorcycle_growth.config import INTERIM_DATA_DIR, RAW_DATA_DIR
+from motorcycle_growth.etl_utils import (
+    assert_mask_empty,
+    assert_no_duplicate_keys,
+    build_normalized_column_map,
+    clean_numeric_code,
+    find_column_by_aliases,
+    normalize_label,
+    resolve_output_path,
+    save_parquet_frame,
+)
 from motorcycle_growth.logging_utils import get_logger
 
 
@@ -54,34 +63,6 @@ class PopulationEtlResult:
     input_path: Path
     output_path: Path
     summary: PopulationQualitySummary
-
-
-def normalize_label(label: object) -> str:
-    """Return a normalized column label for robust matching."""
-    text = str(label).strip().replace("\n", " ")
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(character for character in text if not unicodedata.combining(character))
-    text = re.sub(r"\s+", " ", text)
-    return text.upper()
-
-
-def clean_numeric_code(value: object, *, width: int) -> str | None:
-    """Normalize numeric codes stored as Excel values into zero-padded strings."""
-    if pd.isna(value):
-        return None
-
-    text = str(value).strip()
-    if not text:
-        return None
-
-    digits_only = re.sub(r"\D", "", text)
-    if not digits_only:
-        return None
-
-    if len(digits_only) > width:
-        digits_only = digits_only[-width:]
-
-    return digits_only.zfill(width)
 
 
 def resolve_population_input_path(input_path: Path | None = None) -> Path:
@@ -183,35 +164,24 @@ def load_population_raw_frame(input_path: Path) -> pd.DataFrame:
 
 def resolve_source_columns(raw_frame: pd.DataFrame) -> dict[str, str]:
     """Resolve the raw columns required to build the standard output."""
-    normalized_to_original = {
-        normalize_label(column_name): str(column_name)
-        for column_name in raw_frame.columns
-    }
-
-    def find_column(*aliases: str, allow_prefix: str | None = None) -> str | None:
-        for alias in aliases:
-            match = normalized_to_original.get(normalize_label(alias))
-            if match is not None:
-                return match
-
-        if allow_prefix is not None:
-            normalized_prefix = normalize_label(allow_prefix)
-            for normalized_name, original_name in normalized_to_original.items():
-                if normalized_name.startswith(normalized_prefix):
-                    return original_name
-
-        return None
+    normalized_to_original = build_normalized_column_map(raw_frame.columns)
 
     columns = {
-        "uf_code": find_column("COD. UF", "COD UF"),
-        "municipality_code": find_column("COD. MUNIC", "COD MUNIC"),
-        "municipality_name": find_column(
+        "uf_code": find_column_by_aliases(normalized_to_original, "COD. UF", "COD UF"),
+        "municipality_code": find_column_by_aliases(
+            normalized_to_original,
+            "COD. MUNIC",
+            "COD MUNIC",
+        ),
+        "municipality_name": find_column_by_aliases(
+            normalized_to_original,
             "Municípios",
             "Municipios",
             "NOME DO MUNIC",
             "NOME DO MUNICIPIO",
         ),
-        "population": find_column(
+        "population": find_column_by_aliases(
+            normalized_to_original,
             "POPULAÇÃO",
             "POPULACAO",
             "POPULAÇÃO ESTIMADA",
@@ -284,13 +254,11 @@ def standardize_population_frame(
     dropped_non_municipality_rows = int((~municipality_row_mask).sum())
     working_frame = working_frame.loc[municipality_row_mask].copy()
 
-    invalid_population_count = int(working_frame["population"].isna().sum())
-    if invalid_population_count > 0:
-        msg = (
-            "Population ETL found municipality rows with missing or invalid "
-            f"population values: {invalid_population_count}"
-        )
-        raise PopulationDataQualityError(msg)
+    assert_mask_empty(
+        working_frame["population"].isna(),
+        error_cls=PopulationDataQualityError,
+        message="Population ETL found municipality rows with missing or invalid population values",
+    )
 
     working_frame["population"] = working_frame["population"].round().astype("Int64")
     working_frame["CO_IBGE"] = (
@@ -298,26 +266,17 @@ def standardize_population_frame(
     )
     working_frame["year"] = int(year)
 
-    invalid_code_mask = ~working_frame["CO_IBGE"].str.fullmatch(r"\d{7}")
-    invalid_code_count = int(invalid_code_mask.sum())
-    if invalid_code_count > 0:
-        msg = (
-            "Population ETL generated invalid municipality codes in CO_IBGE: "
-            f"{invalid_code_count}"
-        )
-        raise PopulationDataQualityError(msg)
-
-    duplicate_key_mask = working_frame.duplicated(
-        subset=["CO_IBGE", "year"],
-        keep=False,
+    assert_mask_empty(
+        ~working_frame["CO_IBGE"].str.fullmatch(r"\d{7}"),
+        error_cls=PopulationDataQualityError,
+        message="Population ETL generated invalid municipality codes in CO_IBGE",
     )
-    duplicate_key_count = int(duplicate_key_mask.sum())
-    if duplicate_key_count > 0:
-        msg = (
-            "Population ETL found duplicate municipality-year keys in the cleaned "
-            f"dataset: {duplicate_key_count}"
-        )
-        raise PopulationDataQualityError(msg)
+    assert_no_duplicate_keys(
+        working_frame,
+        subset=["CO_IBGE", "year"],
+        error_cls=PopulationDataQualityError,
+        message="Population ETL found duplicate municipality-year keys in the cleaned dataset",
+    )
 
     standardized_frame = (
         working_frame[["CO_IBGE", "municipality_name", "year", "population"]]
@@ -340,17 +299,6 @@ def build_default_output_path(*, year: int) -> Path:
     return POPULATION_INTERIM_DIR / DEFAULT_OUTPUT_FILE_NAME_TEMPLATE.format(year=year)
 
 
-def save_population_frame(
-    population_frame: pd.DataFrame,
-    *,
-    output_path: Path,
-) -> Path:
-    """Persist the standardized population dataset as parquet."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    population_frame.to_parquet(output_path, index=False)
-    return output_path
-
-
 def run_population_etl(
     *,
     input_path: Path | None = None,
@@ -363,12 +311,11 @@ def run_population_etl(
     raw_frame = load_population_raw_frame(resolved_input_path)
     population_frame, summary = standardize_population_frame(raw_frame, year=resolved_year)
 
-    resolved_output_path = (
-        output_path.expanduser().resolve()
-        if output_path is not None
-        else build_default_output_path(year=resolved_year)
+    resolved_output_path = resolve_output_path(
+        output_path=output_path,
+        default_path=build_default_output_path(year=resolved_year),
     )
-    saved_output_path = save_population_frame(
+    saved_output_path = save_parquet_frame(
         population_frame,
         output_path=resolved_output_path,
     )

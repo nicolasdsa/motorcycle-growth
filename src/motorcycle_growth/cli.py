@@ -15,6 +15,7 @@ from motorcycle_growth.raw_data import (
     build_summary,
     run_raw_data_acquisition,
 )
+from motorcycle_growth.senatran_fleet_etl import run_senatran_fleet_etl
 
 LOGGER = get_logger(__name__)
 
@@ -106,6 +107,40 @@ def build_parser() -> argparse.ArgumentParser:
         "--year",
         type=int,
         help="Reference year override. Defaults to inference from the raw filename.",
+    )
+    etl_senatran_parser = subparsers.add_parser(
+        "etl-senatran-fleet",
+        help=(
+            "Load, validate, annualize, and save the municipality-year SENATRAN "
+            "motorcycle fleet dataset."
+        ),
+    )
+    etl_senatran_parser.add_argument(
+        "--input-path",
+        action="append",
+        type=Path,
+        help=(
+            "Optional raw SENATRAN file path. Repeat the flag to provide more than "
+            "one monthly file. Defaults to all files under the expected raw directory."
+        ),
+    )
+    etl_senatran_parser.add_argument(
+        "--output-path",
+        type=Path,
+        help="Optional parquet output path. Defaults to data/interim/senatran/.",
+    )
+    etl_senatran_parser.add_argument(
+        "--metadata-path",
+        type=Path,
+        help="Optional metadata json path. Defaults to the output parquet directory.",
+    )
+    etl_senatran_parser.add_argument(
+        "--population-path",
+        type=Path,
+        help=(
+            "Optional cleaned population parquet used to recover CO_IBGE from UF and "
+            "municipality names."
+        ),
     )
 
     return parser
@@ -229,6 +264,28 @@ def etl_population(
     return 0
 
 
+def etl_senatran_fleet(
+    *,
+    input_paths: list[Path] | None,
+    output_path: Path | None,
+    metadata_path: Path | None,
+    population_path: Path | None,
+) -> int:
+    """Run the SENATRAN fleet ETL."""
+    result = run_senatran_fleet_etl(
+        input_paths=input_paths,
+        output_path=output_path,
+        metadata_path=metadata_path,
+        population_path=population_path,
+    )
+    LOGGER.info(
+        "SENATRAN fleet ETL completed: outputs=%s metadata=%s",
+        result.output_path,
+        result.metadata_path,
+    )
+    return 0
+
+
 def main() -> int:
     """Run the project CLI."""
     configure_logging()
@@ -267,6 +324,14 @@ def main() -> int:
             input_path=args.input_path,
             output_path=args.output_path,
             year=args.year,
+        )
+
+    if args.command == "etl-senatran-fleet":
+        return etl_senatran_fleet(
+            input_paths=args.input_path,
+            output_path=args.output_path,
+            metadata_path=args.metadata_path,
+            population_path=args.population_path,
         )
 
     return 0
