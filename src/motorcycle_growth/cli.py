@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from motorcycle_growth.config import get_directory_statuses
 from motorcycle_growth.data_catalog import get_data_sources
 from motorcycle_growth.logging_utils import configure_logging, get_logger
+from motorcycle_growth.population_etl import run_population_etl
 from motorcycle_growth.raw_data import (
     AcquisitionOptions,
     AcquisitionStatus,
@@ -85,6 +87,25 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=24,
         help="Discovery cache TTL in hours. Default: 24.",
+    )
+    etl_population_parser = subparsers.add_parser(
+        "etl-population",
+        help="Load, validate, standardize, and save the municipality population dataset.",
+    )
+    etl_population_parser.add_argument(
+        "--input-path",
+        type=Path,
+        help="Optional raw population file path. Defaults to the expected raw directory.",
+    )
+    etl_population_parser.add_argument(
+        "--output-path",
+        type=Path,
+        help="Optional parquet output path. Defaults to data/interim/population/.",
+    )
+    etl_population_parser.add_argument(
+        "--year",
+        type=int,
+        help="Reference year override. Defaults to inference from the raw filename.",
     )
 
     return parser
@@ -188,6 +209,26 @@ def acquire_raw_data(
     return 1 if summary.has_issues else 0
 
 
+def etl_population(
+    *,
+    input_path: Path | None,
+    output_path: Path | None,
+    year: int | None,
+) -> int:
+    """Run the population ETL."""
+    result = run_population_etl(
+        input_path=input_path,
+        output_path=output_path,
+        year=year,
+    )
+    LOGGER.info(
+        "Population ETL completed: input=%s output=%s",
+        result.input_path,
+        result.output_path,
+    )
+    return 0
+
+
 def main() -> int:
     """Run the project CLI."""
     configure_logging()
@@ -219,6 +260,13 @@ def main() -> int:
         return acquire_raw_data(
             check_only=args.check_only,
             options=options,
+        )
+
+    if args.command == "etl-population":
+        return etl_population(
+            input_path=args.input_path,
+            output_path=args.output_path,
+            year=args.year,
         )
 
     return 0
