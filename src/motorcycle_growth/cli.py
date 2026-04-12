@@ -9,6 +9,7 @@ from motorcycle_growth.cnes_infrastructure_etl import run_cnes_infrastructure_et
 from motorcycle_growth.config import get_directory_statuses
 from motorcycle_growth.data_catalog import get_data_sources
 from motorcycle_growth.logging_utils import configure_logging, get_logger
+from motorcycle_growth.panel_builder import run_panel_build
 from motorcycle_growth.population_etl import run_population_etl
 from motorcycle_growth.raw_data import (
     AcquisitionOptions,
@@ -242,6 +243,48 @@ def build_parser() -> argparse.ArgumentParser:
             "layout does not expose a year and the file path does not include one."
         ),
     )
+    build_panel_parser = subparsers.add_parser(
+        "build-panel",
+        help=(
+            "Merge the interim municipality-year datasets into one analytical panel "
+            "with derived variables and data-quality checks."
+        ),
+    )
+    build_panel_parser.add_argument(
+        "--population-path",
+        type=Path,
+        help="Optional population interim parquet path.",
+    )
+    build_panel_parser.add_argument(
+        "--senatran-path",
+        type=Path,
+        help="Optional SENATRAN interim parquet path.",
+    )
+    build_panel_parser.add_argument(
+        "--sih-path",
+        type=Path,
+        help="Optional SIH interim parquet path.",
+    )
+    build_panel_parser.add_argument(
+        "--sim-path",
+        type=Path,
+        help="Optional SIM interim parquet path.",
+    )
+    build_panel_parser.add_argument(
+        "--cnes-path",
+        type=Path,
+        help="Optional CNES interim parquet path.",
+    )
+    build_panel_parser.add_argument(
+        "--output-path",
+        type=Path,
+        help="Optional analytical panel parquet output path.",
+    )
+    build_panel_parser.add_argument(
+        "--metadata-path",
+        type=Path,
+        help="Optional analytical panel metadata json path.",
+    )
 
     return parser
 
@@ -450,6 +493,34 @@ def etl_cnes_infrastructure(
     return 0
 
 
+def build_panel(
+    *,
+    population_path: Path | None,
+    senatran_path: Path | None,
+    sih_path: Path | None,
+    sim_path: Path | None,
+    cnes_path: Path | None,
+    output_path: Path | None,
+    metadata_path: Path | None,
+) -> int:
+    """Build the municipality-year analytical panel."""
+    result = run_panel_build(
+        population_path=population_path,
+        senatran_path=senatran_path,
+        sih_path=sih_path,
+        sim_path=sim_path,
+        cnes_path=cnes_path,
+        output_path=output_path,
+        metadata_path=metadata_path,
+    )
+    LOGGER.info(
+        "Analytical panel build completed: output=%s metadata=%s",
+        result.output_path,
+        result.metadata_path,
+    )
+    return 0
+
+
 def main() -> int:
     """Run the project CLI."""
     configure_logging()
@@ -519,6 +590,17 @@ def main() -> int:
             output_path=args.output_path,
             metadata_path=args.metadata_path,
             establishments_year=args.establishments_year,
+        )
+
+    if args.command == "build-panel":
+        return build_panel(
+            population_path=args.population_path,
+            senatran_path=args.senatran_path,
+            sih_path=args.sih_path,
+            sim_path=args.sim_path,
+            cnes_path=args.cnes_path,
+            output_path=args.output_path,
+            metadata_path=args.metadata_path,
         )
 
     return 0

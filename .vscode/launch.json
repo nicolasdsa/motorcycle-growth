@@ -145,6 +145,19 @@
       "justMyCode": true
     },
     {
+      "name": "Python: Build Analytical Panel",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["build-panel"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "Python: Pipeline Placeholder",
       "type": "python",
       "request": "launch",
