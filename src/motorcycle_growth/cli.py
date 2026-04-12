@@ -16,6 +16,8 @@ from motorcycle_growth.raw_data import (
     run_raw_data_acquisition,
 )
 from motorcycle_growth.senatran_fleet_etl import run_senatran_fleet_etl
+from motorcycle_growth.sim_mortality_etl import run_sim_mortality_etl
+from motorcycle_growth.sih_hospitalization_etl import run_sih_hospitalization_etl
 
 LOGGER = get_logger(__name__)
 
@@ -141,6 +143,58 @@ def build_parser() -> argparse.ArgumentParser:
             "Optional cleaned population parquet used to recover CO_IBGE from UF and "
             "municipality names."
         ),
+    )
+    etl_sih_parser = subparsers.add_parser(
+        "etl-sih-hospitalizations",
+        help=(
+            "Load, validate, filter, aggregate, and save the municipality-year SIH "
+            "motorcycle hospitalization dataset."
+        ),
+    )
+    etl_sih_parser.add_argument(
+        "--input-path",
+        action="append",
+        type=Path,
+        help=(
+            "Optional raw SIH file path. Repeat the flag to provide more than one "
+            "file. Defaults to all supported files under the expected raw directory."
+        ),
+    )
+    etl_sih_parser.add_argument(
+        "--output-path",
+        type=Path,
+        help="Optional parquet output path. Defaults to data/interim/sih/.",
+    )
+    etl_sih_parser.add_argument(
+        "--metadata-path",
+        type=Path,
+        help="Optional metadata json path. Defaults to the output parquet directory.",
+    )
+    etl_sim_parser = subparsers.add_parser(
+        "etl-sim-mortality",
+        help=(
+            "Load, validate, filter, aggregate, and save the municipality-year SIM "
+            "motorcycle mortality dataset."
+        ),
+    )
+    etl_sim_parser.add_argument(
+        "--input-path",
+        action="append",
+        type=Path,
+        help=(
+            "Optional raw SIM file path. Repeat the flag to provide more than one "
+            "file. Defaults to all supported files under the expected raw directory."
+        ),
+    )
+    etl_sim_parser.add_argument(
+        "--output-path",
+        type=Path,
+        help="Optional parquet output path. Defaults to data/interim/sim/.",
+    )
+    etl_sim_parser.add_argument(
+        "--metadata-path",
+        type=Path,
+        help="Optional metadata json path. Defaults to the output parquet directory.",
     )
 
     return parser
@@ -286,6 +340,46 @@ def etl_senatran_fleet(
     return 0
 
 
+def etl_sih_hospitalizations(
+    *,
+    input_paths: list[Path] | None,
+    output_path: Path | None,
+    metadata_path: Path | None,
+) -> int:
+    """Run the SIH hospitalization ETL."""
+    result = run_sih_hospitalization_etl(
+        input_paths=input_paths,
+        output_path=output_path,
+        metadata_path=metadata_path,
+    )
+    LOGGER.info(
+        "SIH hospitalization ETL completed: output=%s metadata=%s",
+        result.output_path,
+        result.metadata_path,
+    )
+    return 0
+
+
+def etl_sim_mortality(
+    *,
+    input_paths: list[Path] | None,
+    output_path: Path | None,
+    metadata_path: Path | None,
+) -> int:
+    """Run the SIM mortality ETL."""
+    result = run_sim_mortality_etl(
+        input_paths=input_paths,
+        output_path=output_path,
+        metadata_path=metadata_path,
+    )
+    LOGGER.info(
+        "SIM mortality ETL completed: output=%s metadata=%s",
+        result.output_path,
+        result.metadata_path,
+    )
+    return 0
+
+
 def main() -> int:
     """Run the project CLI."""
     configure_logging()
@@ -332,6 +426,20 @@ def main() -> int:
             output_path=args.output_path,
             metadata_path=args.metadata_path,
             population_path=args.population_path,
+        )
+
+    if args.command == "etl-sih-hospitalizations":
+        return etl_sih_hospitalizations(
+            input_paths=args.input_path,
+            output_path=args.output_path,
+            metadata_path=args.metadata_path,
+        )
+
+    if args.command == "etl-sim-mortality":
+        return etl_sim_mortality(
+            input_paths=args.input_path,
+            output_path=args.output_path,
+            metadata_path=args.metadata_path,
         )
 
     return 0

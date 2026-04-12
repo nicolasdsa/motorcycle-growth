@@ -106,6 +106,32 @@
       "justMyCode": true
     },
     {
+      "name": "Python: ETL SIH Hospitalizations",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["etl-sih-hospitalizations"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: ETL SIM Mortality",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["etl-sim-mortality"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "Python: Pipeline Placeholder",
       "type": "python",
       "request": "launch",

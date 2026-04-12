@@ -591,6 +591,93 @@ docs = ["ipython", "matplotlib", "numpydoc", "sphinx"]
 tests = ["pytest", "pytest-cov", "pytest-xdist"]
 
 [[package]]
+name = "datasus-dbc"
+version = "0.1.3"
+description = "Decompress DATASUS's dbc files into dbf files"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "datasus_dbc-0.1.3-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:44cbdcd9e1db85d914373daaf15c4dc03cf0530fbddf328464910a2facf2a6de"},
+    {file = "datasus_dbc-0.1.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:95c93d27f690c39e453fc510b63a63ef76fa7980bb8c02953e1f0beaa0868d07"},
+    {file = "datasus_dbc-0.1.3-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:bb42588028844e1ac3a7c92a2b263dbd429958588ade200090b4fa3adb946bec"},
+    {file = "datasus_dbc-0.1.3-cp310-cp310-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:838f13344a4d835351bd5b2919159c6743a6b156e436e6939198337f67df9249"},
+    {file = "datasus_dbc-0.1.3-cp310-cp310-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:a9d375d98e8dcc092618b9093dfb263ed6ffd9005242b33ccda98f8b3dec08b0"},
+    {file = "datasus_dbc-0.1.3-cp310-cp310-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:6a2514ccca1546bb7e99f41cf9d5119e829a37c05cd6933cec86e88edd8b03e0"},
+    {file = "datasus_dbc-0.1.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:11acd3edbf06f02edb09449f28465051e66d63c101c8ec5e9a7f3333d5b7813c"},
+    {file = "datasus_dbc-0.1.3-cp310-cp310-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:af0802e753c09422612f77464e89de466cb6462f5cf9efd73693c48e1d955d8c"},
+    {file = "datasus_dbc-0.1.3-cp310-none-win32.whl", hash = "sha256:5bc1e1339aa13468654d9f965d315c83ffc7cbf58ffe4c7d55b16d6aef0b4f8e"},
+    {file = "datasus_dbc-0.1.3-cp310-none-win_amd64.whl", hash = "sha256:e8875ab9319f001a9e22345e39b75b61813a1dd6e322069383e052787d9357de"},
+    {file = "datasus_dbc-0.1.3-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:8198ffe624db2b4425066381c6dba02863e6d0249391a7202c84a802ff3c3a74"},
+    {file = "datasus_dbc-0.1.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:30fd3856d7b8ac26755f1a71186679f1943c83d327224eb87653e6d735474a76"},
+    {file = "datasus_dbc-0.1.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:39e28df732a3f6a786f44d5e837a1574970b47203ca5d65c83b697cc310aba9a"},
+    {file = "datasus_dbc-0.1.3-cp311-cp311-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:bcd0262b81ee6d1ecf655395bc7c011efff1bff3ffda56e12014de032c264dbf"},
+    {file = "datasus_dbc-0.1.3-cp311-cp311-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:a162bf8186d3b75a15626dfc5cf11b982f4f91bfd976607c0e82750bdefdc375"},
+    {file = "datasus_dbc-0.1.3-cp311-cp311-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:05f0bc76567ed288fc2021ace3feaa1eda06598635e52697af9e87f23316b4bd"},
+    {file = "datasus_dbc-0.1.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b0a2b37dcfd6de5e5dbc4f3b7b0e1e42957146b9e736ea22bf04c930df546b20"},
+    {file = "datasus_dbc-0.1.3-cp311-cp311-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:225006a1d7ffbd1b01f3b05b415cefdc1305341b9e18da9450014d3edbd36694"},
+    {file = "datasus_dbc-0.1.3-cp311-none-win32.whl", hash = "sha256:7f8ff376b58e73248345b8c01ad88739bb48d7391a36f6a56361019bf1aa05e2"},
+    {file = "datasus_dbc-0.1.3-cp311-none-win_amd64.whl", hash = "sha256:3a13cda8d61c4732be8a26f08df6e9e7a74151c67dcae4dfc3f49d7fc8eb2962"},
+    {file = "datasus_dbc-0.1.3-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:42bbe9c32f90e0603ab417502768db8c23ec8403b91b386b779e4a83065a66a4"},
+    {file = "datasus_dbc-0.1.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:5c0589c834f00c32e77a5b38aebd0f72eba13eb4e9867580c4f8653953748628"},
+    {file = "datasus_dbc-0.1.3-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:972217afcf96b2cbfe995c739ff4270a7e3ab607b683adf5e17a154b42f12c2d"},
+    {file = "datasus_dbc-0.1.3-cp312-cp312-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:c8ec3680df76c3f9f4911d24a209d4d8a00220f80975e08fd0c8c338119d7307"},
+    {file = "datasus_dbc-0.1.3-cp312-cp312-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:3331eb4509e7995dfa7e389265b723eec6b8428dec3ec076e411bba69a3b69d9"},
+    {file = "datasus_dbc-0.1.3-cp312-cp312-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:39d9cb7c588ba27f793d282058f19b9ed0ac8d4e2832b8432f235fb71d3d0fa1"},
+    {file = "datasus_dbc-0.1.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ce505fbc026181d2be2655811eda8ce4e99ab98bacf56523155d1fbae10e2c08"},
+    {file = "datasus_dbc-0.1.3-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:2c5160040f79f08257f9d5e2870772c6020d6ae3d12ae57c307f515d2b089170"},
+    {file = "datasus_dbc-0.1.3-cp312-none-win32.whl", hash = "sha256:c1c81506881dc34517837a7f9154c8dc6982f0316b41de7932000f718899d589"},
+    {file = "datasus_dbc-0.1.3-cp312-none-win_amd64.whl", hash = "sha256:17d0209663b40dc7541bbdc9379941411a866c00a4c89e3e279de566b9479be5"},
+    {file = "datasus_dbc-0.1.3-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:945fe0175cceec7269bde687bdeaa0046175f5cb983892f82ca242797f643f2a"},
+    {file = "datasus_dbc-0.1.3-cp38-cp38-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:be2461dde82635ee0754bac11e6ddf0bba4d13b538a38a550faf4e896684735d"},
+    {file = "datasus_dbc-0.1.3-cp38-cp38-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:57168de6d1355dc6d2b749fda8d47b9142d9cc7ae40eee582f2d4dd28803550c"},
+    {file = "datasus_dbc-0.1.3-cp38-cp38-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:629843289a10d3165a5da35944737d91f768548b55dc9d58ebbd5622016c9eb5"},
+    {file = "datasus_dbc-0.1.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:aed1be20f079faa5bcb1cd95b2c517f53031917e4b67ce564de97396c80b50a1"},
+    {file = "datasus_dbc-0.1.3-cp38-cp38-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:34b74a0665376300beae9c1b68539d8a9dc1256cc7b5e9ef1ec351476cccaee2"},
+    {file = "datasus_dbc-0.1.3-cp38-none-win32.whl", hash = "sha256:676c8afe747a53ff8357f8179e8e30c0f657882b7e51add2760139ea96d433f2"},
+    {file = "datasus_dbc-0.1.3-cp38-none-win_amd64.whl", hash = "sha256:b7d0ad86f7b9b497015f260039fda443fddda8dbc6d3e450aebb5591a997d13b"},
+    {file = "datasus_dbc-0.1.3-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:065793b8369fd2ecda29e13f2c1e88629bc38a619791888410998973c0409fac"},
+    {file = "datasus_dbc-0.1.3-cp39-cp39-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:a6068b6f712e24241f8230bade373ff223474578233f4e50f56e8f29a5822cd7"},
+    {file = "datasus_dbc-0.1.3-cp39-cp39-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:32264b6af6fda1452b305d1aef6c3978e45fb86d9c44dcd76c394a4d5e311756"},
+    {file = "datasus_dbc-0.1.3-cp39-cp39-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:058753d2937993dfa262ab10d51c6dc0d68eaff026359d1d48010086f9fbf40a"},
+    {file = "datasus_dbc-0.1.3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1e52308cdf634f842f2da67871e0d05122b1af99f4693923e3b87aa6e5394d3b"},
+    {file = "datasus_dbc-0.1.3-cp39-cp39-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:21163f3e9d7ddf6f6b709bd4c6e48ce0de8a207f240604c3685e47905fed6a23"},
+    {file = "datasus_dbc-0.1.3-cp39-none-win32.whl", hash = "sha256:58943766fb10cec4952f6338f3781e0a4146ab8cb41b1d8844923a2c86cfe6e9"},
+    {file = "datasus_dbc-0.1.3-cp39-none-win_amd64.whl", hash = "sha256:9ed510da101fd1ef1b1995745b1b6986c349cd05e2fab6f73f963ce88b36a180"},
+    {file = "datasus_dbc-0.1.3-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:5c436479e6721de0cbc39642860250fb4645e3d338a26d99e9c41e93488e29f3"},
+    {file = "datasus_dbc-0.1.3-pp310-pypy310_pp73-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:d61f49ebe1c36a01e72dfd352a144abf983a6a4c543b0559571b167ba194f326"},
+    {file = "datasus_dbc-0.1.3-pp310-pypy310_pp73-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:f1c14b2a762db46c9cfc1f8b6c40a00af085c49a6139499964842e6268d2915b"},
+    {file = "datasus_dbc-0.1.3-pp310-pypy310_pp73-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:80400abc0fd6515699a4f5c350a211af7d2e4179c5f55ea77838945e6d3f8aa9"},
+    {file = "datasus_dbc-0.1.3-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cc0b203a36e7f86993236a7e91cbe083f94ac8d6d3dfb110b6d327cf2251da48"},
+    {file = "datasus_dbc-0.1.3-pp310-pypy310_pp73-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:ea9a7bb24c12afbd35057c0bbdd6c13e51561a215ef212a86b9ccbfd17c20caf"},
+    {file = "datasus_dbc-0.1.3-pp38-pypy38_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:49c98f6ded52a8c907808ee87e5bfdc1cbf41b741db1f1f4ac39a300a625c97f"},
+    {file = "datasus_dbc-0.1.3-pp38-pypy38_pp73-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:63b08cd071807059cd3a1b863c8005d6c646cb86137b641e6ef2cc69779f52fd"},
+    {file = "datasus_dbc-0.1.3-pp38-pypy38_pp73-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:c84e430174817712522b57c91a72b99f336f3456fbb72c31a27932264c03f49a"},
+    {file = "datasus_dbc-0.1.3-pp38-pypy38_pp73-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:243f76b1109c12360c231e64b224227ee2d846ab049bbb5ba049cea8a81845b3"},
+    {file = "datasus_dbc-0.1.3-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7bb65e4f49327a8ee83dd857ab0ef533f9b15719a357ada683c7264d6f88b41e"},
+    {file = "datasus_dbc-0.1.3-pp38-pypy38_pp73-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:af374f1102d673c17d8b6205f7164702e1ab62e7b2be36cf3ebe537de4403e60"},
+    {file = "datasus_dbc-0.1.3-pp39-pypy39_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b857bac3073a648a660010a3491c58d5133174819fe704973dbc7d1d9a777006"},
+    {file = "datasus_dbc-0.1.3-pp39-pypy39_pp73-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:b90ea5cee42fb9b2f09558f34f0931d1660ec7cad12c7a76c38e66c95a631eb0"},
+    {file = "datasus_dbc-0.1.3-pp39-pypy39_pp73-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:e46407f4202158a6517d4da857925e0393aa2cdaa2f42894a75050544070898f"},
+    {file = "datasus_dbc-0.1.3-pp39-pypy39_pp73-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:2390ad38a162d63ade6c8459930ef34e12e143a6a2cf61ad6b31a0c75a4daa36"},
+    {file = "datasus_dbc-0.1.3-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0ad878e298950b46dd52150a3d692d440ff01cce4be1215a14eb072711b20805"},
+    {file = "datasus_dbc-0.1.3-pp39-pypy39_pp73-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:5d02b5ccaad67dab3a36d21a951b9d886cfa1e7b31b290dc596120effbe62ae5"},
+    {file = "datasus_dbc-0.1.3.tar.gz", hash = "sha256:5d463f16f8c896247463f22eb31b3c3f756837f7c1be5cecc868c5114df4df8c"},
+]
+
+[[package]]
+name = "dbfread"
+version = "2.0.7"
+description = "Read DBF Files with Python"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "dbfread-2.0.7-py2.py3-none-any.whl", hash = "sha256:f604def58c59694fa0160d7be5d0b8d594467278d2bb6a47d46daf7162c84cec"},
+    {file = "dbfread-2.0.7.tar.gz", hash = "sha256:07c8a9af06ffad3f6f03e8fe91ad7d2733e31a26d2b72c4dd4cfbae07ee3b73d"},
+]
+
+[[package]]
 name = "debugpy"
 version = "1.8.20"
 description = "An implementation of the Debug Adapter Protocol for Python"
@@ -3280,4 +3367,4 @@ test = ["pytest", "pytest-cov"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "3b9eec4debcb67a26564967b2d23ed1e4590ef5de413eaa08ef171e935730a32"
+content-hash = "b5e5163787cedce9f9715945b68f0c892f5f15566a990f910f6db0180f8f13e6"
