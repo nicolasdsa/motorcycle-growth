@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from motorcycle_growth.cnes_infrastructure_etl import run_cnes_infrastructure_etl
 from motorcycle_growth.config import get_directory_statuses
 from motorcycle_growth.data_catalog import get_data_sources
 from motorcycle_growth.logging_utils import configure_logging, get_logger
@@ -196,6 +197,51 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Optional metadata json path. Defaults to the output parquet directory.",
     )
+    etl_cnes_parser = subparsers.add_parser(
+        "etl-cnes-infrastructure",
+        help=(
+            "Load, standardize, aggregate, and save municipality-year CNES "
+            "infrastructure indicators for emergency trauma care."
+        ),
+    )
+    etl_cnes_parser.add_argument(
+        "--establishments-input-path",
+        action="append",
+        type=Path,
+        help=(
+            "Optional CNES establishment input file path. Repeat the flag to "
+            "provide more than one file. Defaults to supported files under the "
+            "expected raw directory."
+        ),
+    )
+    etl_cnes_parser.add_argument(
+        "--beds-input-path",
+        action="append",
+        type=Path,
+        help=(
+            "Optional CNES bed input file path. Repeat the flag to provide more "
+            "than one file. Defaults to supported files under the expected raw "
+            "directory."
+        ),
+    )
+    etl_cnes_parser.add_argument(
+        "--output-path",
+        type=Path,
+        help="Optional parquet output path. Defaults to data/interim/cnes/.",
+    )
+    etl_cnes_parser.add_argument(
+        "--metadata-path",
+        type=Path,
+        help="Optional metadata json path. Defaults to the output parquet directory.",
+    )
+    etl_cnes_parser.add_argument(
+        "--establishments-year",
+        type=int,
+        help=(
+            "Optional reference year for CNES establishment files when the raw "
+            "layout does not expose a year and the file path does not include one."
+        ),
+    )
 
     return parser
 
@@ -380,6 +426,30 @@ def etl_sim_mortality(
     return 0
 
 
+def etl_cnes_infrastructure(
+    *,
+    establishment_input_paths: list[Path] | None,
+    bed_input_paths: list[Path] | None,
+    output_path: Path | None,
+    metadata_path: Path | None,
+    establishments_year: int | None,
+) -> int:
+    """Run the CNES infrastructure ETL."""
+    result = run_cnes_infrastructure_etl(
+        establishment_input_paths=establishment_input_paths,
+        bed_input_paths=bed_input_paths,
+        output_path=output_path,
+        metadata_path=metadata_path,
+        establishments_year=establishments_year,
+    )
+    LOGGER.info(
+        "CNES infrastructure ETL completed: output=%s metadata=%s",
+        result.output_path,
+        result.metadata_path,
+    )
+    return 0
+
+
 def main() -> int:
     """Run the project CLI."""
     configure_logging()
@@ -440,6 +510,15 @@ def main() -> int:
             input_paths=args.input_path,
             output_path=args.output_path,
             metadata_path=args.metadata_path,
+        )
+
+    if args.command == "etl-cnes-infrastructure":
+        return etl_cnes_infrastructure(
+            establishment_input_paths=args.establishments_input_path,
+            bed_input_paths=args.beds_input_path,
+            output_path=args.output_path,
+            metadata_path=args.metadata_path,
+            establishments_year=args.establishments_year,
         )
 
     return 0

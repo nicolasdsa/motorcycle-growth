@@ -132,6 +132,19 @@
       "justMyCode": true
     },
     {
+      "name": "Python: ETL CNES Infrastructure",
+      "type": "python",
+      "request": "launch",
+      "module": "motorcycle_growth.cli",
+      "args": ["etl-cnes-infrastructure"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "Python: Pipeline Placeholder",
       "type": "python",
       "request": "launch",
