@@ -112,6 +112,54 @@ def test_standardize_sim_mortality_frame_falls_back_when_basic_cause_is_missing(
     assert standardized_frame["municipality_code"].tolist() == ["3304557", "3304557"]
 
 
+def test_standardize_sim_mortality_frame_accepts_panel_api_extract() -> None:
+    """The ETL should accept the new panel-based SIM monthly extract."""
+    raw_frame = pd.DataFrame(
+        {
+            "municipality_code": ["355030", "355030", "330455"],
+            "year": [2025, 2025, 2025],
+            "month": [1, 2, 1],
+            "motorcycle_deaths": [2, 1, 3],
+        }
+    )
+
+    standardized_frame, schema, matched_columns = standardize_sim_mortality_frame(
+        raw_frame,
+        source_file_name="sim_panel_cid10_v20_v29_municipality_month_2025.csv",
+    )
+
+    assert schema.municipality.scope == "residence"
+    assert schema.municipality.column_name == "municipality_code"
+    assert schema.year.column_name == "year"
+    assert matched_columns == ("panel_indicator_v20_v29",)
+    assert standardized_frame.to_dict(orient="records") == [
+        {
+            "municipality_code": "355030",
+            "year": 2025,
+            "motorcycle_deaths": 2,
+            "municipality_scope": "residence",
+            "source_municipality_column": "municipality_code",
+            "source_file_name": "sim_panel_cid10_v20_v29_municipality_month_2025.csv",
+        },
+        {
+            "municipality_code": "355030",
+            "year": 2025,
+            "motorcycle_deaths": 1,
+            "municipality_scope": "residence",
+            "source_municipality_column": "municipality_code",
+            "source_file_name": "sim_panel_cid10_v20_v29_municipality_month_2025.csv",
+        },
+        {
+            "municipality_code": "330455",
+            "year": 2025,
+            "motorcycle_deaths": 3,
+            "municipality_scope": "residence",
+            "source_municipality_column": "municipality_code",
+            "source_file_name": "sim_panel_cid10_v20_v29_municipality_month_2025.csv",
+        },
+    ]
+
+
 def test_resolve_sim_input_paths_detects_open_csv_zip_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -185,3 +233,48 @@ def test_run_sim_mortality_etl_writes_outputs(
     assert saved_metadata["summary"]["cause_columns_with_matches"] == [
         "CAUSABAS",
     ]
+
+
+def test_run_sim_mortality_etl_accepts_panel_extract_input(
+    tmp_path: Path,
+) -> None:
+    """The ETL should aggregate municipality-year totals from the panel extract."""
+    input_path = tmp_path / "sim_panel_cid10_v20_v29_municipality_month_2025.csv"
+    raw_frame = pd.DataFrame(
+        {
+            "municipality_code": ["355030", "355030", "330455"],
+            "year": [2025, 2025, 2025],
+            "month": [1, 2, 1],
+            "motorcycle_deaths": [2, 1, 3],
+        }
+    )
+    raw_frame.to_csv(input_path, index=False)
+    output_path = tmp_path / "sim" / "sim_motorcycle_mortality.parquet"
+    metadata_path = tmp_path / "sim" / "sim_motorcycle_mortality_metadata.json"
+
+    result = run_sim_mortality_etl(
+        input_paths=[input_path],
+        output_path=output_path,
+        metadata_path=metadata_path,
+    )
+
+    saved_frame = pd.read_parquet(result.output_path)
+    saved_metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
+
+    assert saved_frame.to_dict(orient="records") == [
+        {
+            "municipality_code": "330455",
+            "year": 2025,
+            "motorcycle_deaths": 3,
+            "municipality_scope": "residence",
+            "source_municipality_column": "municipality_code",
+        },
+        {
+            "municipality_code": "355030",
+            "year": 2025,
+            "motorcycle_deaths": 3,
+            "municipality_scope": "residence",
+            "source_municipality_column": "municipality_code",
+        },
+    ]
+    assert saved_metadata["summary"]["source_layout"] == "panel_api_monthly_extract"

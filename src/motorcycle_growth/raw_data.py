@@ -16,12 +16,14 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import requests
-from requests import Response, Session
+import pandas as pd
+from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from motorcycle_growth.config import RAW_DATA_DIR
 from motorcycle_growth.data_catalog import DataSourceMetadata, get_data_source
+from motorcycle_growth.etl_utils import clean_numeric_code
 
 
 DISCOVERY_CACHE_DIR = RAW_DATA_DIR / ".cache"
@@ -34,7 +36,26 @@ SENATRAN_INDEX_URL = (
     "https://www.gov.br/transportes/pt-br/assuntos/transito/conteudo-Senatran/"
     "estatisticas-frota-de-veiculos-senatran"
 )
-SIM_DATASET_URL = "https://dadosabertos.saude.gov.br/dataset/sim"
+SIM_PANEL_PAGE_URL = (
+    "https://svs.aids.gov.br/daent/centrais-de-conteudos/"
+    "paineis-de-monitoramento/mortalidade/cid10/"
+)
+SIM_PANEL_API_URL = "https://svs.aids.gov.br/services2/v1/mortalidade/cid10/"
+SIM_PANEL_MOTORCYCLE_INDICATOR_UID = 210188
+SIM_PANEL_MONTH_COLUMNS = (
+    ("jan", 1),
+    ("fev", 2),
+    ("mar", 3),
+    ("abr", 4),
+    ("mai", 5),
+    ("jun", 6),
+    ("jul", 7),
+    ("ago", 8),
+    ("set", 9),
+    ("out", 10),
+    ("nov", 11),
+    ("dez", 12),
+)
 
 
 class AcquisitionStatus(StrEnum):
@@ -71,6 +92,9 @@ class AcquisitionOptions:
     sih_year: int | None = None
     sih_month: int | None = None
     sih_uf: str | None = None
+    cnes_year: int | None = None
+    cnes_month: int | None = None
+    cnes_uf: str | None = None
     cache_ttl_hours: int = 24
 
 
@@ -93,6 +117,15 @@ class DiscoveredAsset:
     """A public asset discovered from an official page or endpoint."""
 
     download_url: str
+    filename: str
+    source_reference: str
+    notes: str | None = None
+
+
+@dataclass(frozen=True)
+class PlannedAsset:
+    """One raw asset that must be materialized locally from an official API."""
+
     filename: str
     source_reference: str
     notes: str | None = None
@@ -169,6 +202,7 @@ class HttpClient:
         session.mount("http://", adapter)
         session.headers.update(
             {
+                "Accept-Encoding": "identity",
                 "User-Agent": "motorcycle-growth/0.1.0 raw-data-ingestion",
             }
         )
@@ -528,6 +562,15 @@ DiscoveryFunction = Callable[
     [RawFileRequirement, AcquisitionOptions, HttpClient],
     DiscoveredAsset,
 ]
+PlanFunction = Callable[
+    [RawFileRequirement, AcquisitionOptions, HttpClient],
+    PlannedAsset,
+]
+MaterializationFunction = Callable[
+    [RawFileRequirement, PlannedAsset, AcquisitionOptions, HttpClient],
+    Path,
+]
+OptionsPredicate = Callable[[AcquisitionOptions], bool]
 
 
 class DiscoverableDownloadHandler(RawSourceHandler):
@@ -538,9 +581,11 @@ class DiscoverableDownloadHandler(RawSourceHandler):
         metadata: DataSourceMetadata,
         requirements: tuple[RawFileRequirement, ...],
         discovery_function: DiscoveryFunction,
+        parameter_options_present: OptionsPredicate | None = None,
     ) -> None:
         super().__init__(metadata, requirements)
         self.discovery_function = discovery_function
+        self.parameter_options_present = parameter_options_present
 
     def run(
         self,
@@ -552,20 +597,26 @@ class DiscoverableDownloadHandler(RawSourceHandler):
         records: list[AcquisitionRecord] = []
 
         for requirement in self.requirements:
-            existing_files = self._existing_matches(requirement)
-            if existing_files:
-                records.append(
-                    self._record(
-                        requirement,
-                        AcquisitionStatus.PRESENT,
-                        (
-                            "Raw input already present. "
-                            f"Using {existing_files[0].name}."
-                        ),
-                        local_path=existing_files[0],
+            parameter_request = (
+                self.parameter_options_present(options)
+                if self.parameter_options_present is not None
+                else False
+            )
+            if not parameter_request:
+                existing_files = self._existing_matches(requirement)
+                if existing_files:
+                    records.append(
+                        self._record(
+                            requirement,
+                            AcquisitionStatus.PRESENT,
+                            (
+                                "Raw input already present. "
+                                f"Using {existing_files[0].name}."
+                            ),
+                            local_path=existing_files[0],
+                        )
                     )
-                )
-                continue
+                    continue
 
             try:
                 asset = self.discovery_function(requirement, options, client)
@@ -603,6 +654,21 @@ class DiscoverableDownloadHandler(RawSourceHandler):
                             f"{requirement.local_directory}."
                             f"{self._note_suffix(requirement.notes)}"
                         ),
+                    )
+                )
+                continue
+
+            exact_local_path = requirement.local_directory / asset.filename
+            if exact_local_path.exists():
+                records.append(
+                    self._record(
+                        requirement,
+                        AcquisitionStatus.PRESENT,
+                        (
+                            "Raw input already present for the requested parameters. "
+                            f"Using {exact_local_path.name}."
+                        ),
+                        local_path=exact_local_path,
                     )
                 )
                 continue
@@ -661,6 +727,168 @@ class DiscoverableDownloadHandler(RawSourceHandler):
         return records
 
 
+class ProgrammaticSourceHandler(RawSourceHandler):
+    """Handler for raw sources that must be materialized from an official API."""
+
+    def __init__(
+        self,
+        metadata: DataSourceMetadata,
+        requirements: tuple[RawFileRequirement, ...],
+        plan_function: PlanFunction,
+        materialization_function: MaterializationFunction,
+        parameter_options_present: OptionsPredicate | None = None,
+    ) -> None:
+        super().__init__(metadata, requirements)
+        self.plan_function = plan_function
+        self.materialization_function = materialization_function
+        self.parameter_options_present = parameter_options_present
+
+    def run(
+        self,
+        *,
+        download_enabled: bool,
+        client: HttpClient,
+        options: AcquisitionOptions,
+    ) -> list[AcquisitionRecord]:
+        records: list[AcquisitionRecord] = []
+
+        for requirement in self.requirements:
+            parameter_request = (
+                self.parameter_options_present(options)
+                if self.parameter_options_present is not None
+                else False
+            )
+            if not parameter_request:
+                existing_files = self._existing_matches(requirement)
+                if existing_files:
+                    records.append(
+                        self._record(
+                            requirement,
+                            AcquisitionStatus.PRESENT,
+                            (
+                                "Raw input already present. "
+                                f"Using {existing_files[0].name}."
+                            ),
+                            local_path=existing_files[0],
+                        )
+                    )
+                    continue
+
+            try:
+                asset = self.plan_function(requirement, options, client)
+            except ConfigurationError as exc:
+                records.append(
+                    self._record(
+                        requirement,
+                        AcquisitionStatus.REQUIRES_CONFIGURATION,
+                        (
+                            f"Automatic acquisition for {requirement.display_name} "
+                            f"requires additional input. {exc}. "
+                            f"Official source: {requirement.source_reference}. "
+                            f"You may also place the official file under "
+                            f"{requirement.local_directory}."
+                        ),
+                    )
+                )
+                continue
+            except (
+                DiscoveryError,
+                requests.RequestException,
+                json.JSONDecodeError,
+                ContentValidationError,
+            ) as exc:
+                records.append(
+                    self._record(
+                        requirement,
+                        AcquisitionStatus.FAILED,
+                        (
+                            f"Automatic acquisition planning failed for {requirement.display_name}. "
+                            f"Official source: {requirement.source_reference}. "
+                            f"Target directory: {requirement.local_directory}. "
+                            f"Error: {exc}. "
+                            f"You may place the official file manually under "
+                            f"{requirement.local_directory}."
+                            f"{self._note_suffix(asset.notes if 'asset' in locals() else requirement.notes)}"
+                        ),
+                    )
+                )
+                continue
+
+            exact_local_path = requirement.local_directory / asset.filename
+            if exact_local_path.exists():
+                records.append(
+                    self._record(
+                        requirement,
+                        AcquisitionStatus.PRESENT,
+                        (
+                            "Raw input already present for the requested parameters. "
+                            f"Using {exact_local_path.name}."
+                        ),
+                        local_path=exact_local_path,
+                    )
+                )
+                continue
+
+            if not download_enabled:
+                records.append(
+                    self._record(
+                        requirement,
+                        AcquisitionStatus.DOWNLOAD_AVAILABLE,
+                        (
+                            f"Programmatic extraction is available for {requirement.display_name}. "
+                            f"Official source: {asset.source_reference}. "
+                            f"Target filename: {asset.filename}. "
+                            f"Target directory: {requirement.local_directory}. "
+                            "Run the command without --check-only to materialize it."
+                            f"{self._note_suffix(asset.notes or requirement.notes)}"
+                        ),
+                    )
+                )
+                continue
+
+            try:
+                materialized_path = self.materialization_function(
+                    requirement,
+                    asset,
+                    options,
+                    client,
+                )
+            except (
+                DiscoveryError,
+                requests.RequestException,
+                json.JSONDecodeError,
+                ContentValidationError,
+            ) as exc:
+                records.append(
+                    self._record(
+                        requirement,
+                        AcquisitionStatus.FAILED,
+                        (
+                            f"Programmatic extraction failed for {requirement.display_name}. "
+                            f"Official source: {asset.source_reference}. "
+                            f"Target directory: {requirement.local_directory}. "
+                            f"Error: {exc}."
+                            f"{self._note_suffix(asset.notes or requirement.notes)}"
+                        ),
+                    )
+                )
+                continue
+
+            records.append(
+                self._record(
+                    requirement,
+                    AcquisitionStatus.DOWNLOADED,
+                    (
+                        f"Materialized {materialized_path.name} from {asset.source_reference} "
+                        f"to {materialized_path.parent}."
+                    ),
+                    local_path=materialized_path,
+                )
+            )
+
+        return records
+
+
 def infer_filename_from_url(download_url: str) -> str:
     """Infer a filename from a direct download URL."""
     filename = Path(urlparse(download_url).path).name
@@ -696,17 +924,151 @@ def validate_downloaded_file(file_path: Path) -> None:
         )
 
 
-def extract_next_data_json(html_text: str) -> dict[str, Any]:
-    """Extract the Next.js payload from an official HTML page."""
-    match = re.search(
-        r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
-        html_text,
-        flags=re.DOTALL,
-    )
-    if match is None:
-        raise DiscoveryError("Could not locate __NEXT_DATA__ in the official page.")
+def request_json_payload(
+    client: HttpClient,
+    url: str,
+    *,
+    params: dict[str, str | int] | None = None,
+) -> Any:
+    """Request one JSON payload from an official HTTP endpoint."""
+    response = client.session.get(url, params=params, timeout=(10, 120))
+    response.raise_for_status()
+    return response.json()
 
-    return json.loads(html.unescape(match.group(1)))
+
+def select_sim_panel_year(
+    year_payload: dict[str, Any],
+    *,
+    preferred_year: int | None,
+) -> dict[str, Any]:
+    """Select one year entry from the SIM panel year filter payload."""
+    results = year_payload.get("resultados")
+    if not isinstance(results, list):
+        raise DiscoveryError("The SIM panel year endpoint returned an unexpected payload.")
+
+    candidates = [
+        item
+        for item in results
+        if isinstance(item, dict) and isinstance(item.get("uid"), int)
+    ]
+    if not candidates:
+        raise DiscoveryError("The SIM panel year endpoint did not expose any year option.")
+
+    if preferred_year is not None:
+        for item in candidates:
+            if item["uid"] == preferred_year:
+                return item
+        raise DiscoveryError(
+            f"Could not find year {preferred_year} on the official SIM panel."
+        )
+
+    return max(candidates, key=lambda item: int(item["uid"]))
+
+
+def build_sim_panel_extract_filename(year: int) -> str:
+    """Return the standard raw filename for one SIM panel API extract."""
+    return f"sim_panel_cid10_v20_v29_municipality_month_{year}.csv"
+
+
+def build_sim_panel_export_params(
+    *,
+    year: int,
+    uf_code: int,
+    microrregiao_code: int,
+) -> dict[str, str | int]:
+    """Build the official SIM panel query for one microrregion export."""
+    return {
+        "ano": year,
+        "local": 1,
+        "indicador": SIM_PANEL_MOTORCYCLE_INDICATOR_UID,
+        "categoria": 1,
+        "estatistica": 1,
+        "lococor": 0,
+        "atestante": 0,
+        "grupoetario": 2000,
+        "racacor": 0,
+        "sexo": 0,
+        "uf": uf_code,
+        "abrangencia": 5,
+        "microrregiao": microrregiao_code,
+        "espacial": "ibge",
+        "parcial": "true",
+    }
+
+
+def build_sim_panel_monthly_rows(
+    export_payload: dict[str, Any],
+    *,
+    year: int,
+    uf_code: int,
+    uf_name: str,
+    microrregiao_code: int,
+    microrregiao_name: str,
+    year_is_preliminary: bool,
+) -> list[dict[str, Any]]:
+    """Convert one SIM panel municipality export payload into monthly raw rows."""
+    results = export_payload.get("resultados")
+    if not isinstance(results, list):
+        raise DiscoveryError("The SIM municipality export payload has an unexpected format.")
+
+    rows: list[dict[str, Any]] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        abrangencia = item.get("abrangencia")
+        if not isinstance(abrangencia, dict) or abrangencia.get("uid") != 8:
+            continue
+
+        municipality_code = clean_numeric_code(item.get("uid"), width=6)
+        municipality_name = item.get("nome")
+        if municipality_code is None or not isinstance(municipality_name, str):
+            raise DiscoveryError(
+                "The SIM municipality export did not expose a valid municipality identifier."
+            )
+
+        month_values = []
+        for month_key, month_number in SIM_PANEL_MONTH_COLUMNS:
+            month_value = pd.to_numeric(item.get(month_key), errors="coerce")
+            if pd.isna(month_value):
+                raise DiscoveryError(
+                    f"The SIM municipality export is missing a valid value for month {month_key}."
+                )
+            month_count = int(month_value)
+            month_values.append(month_count)
+            rows.append(
+                {
+                    "year": year,
+                    "month": month_number,
+                    "municipality_code": municipality_code,
+                    "municipality_name": municipality_name.strip(),
+                    "uf_code": f"{uf_code:02d}",
+                    "uf_name": uf_name.strip(),
+                    "microrregiao_code": f"{microrregiao_code:05d}",
+                    "microrregiao_name": microrregiao_name.strip(),
+                    "motorcycle_deaths": month_count,
+                    "year_is_preliminary": year_is_preliminary,
+                    "source_data_label": str(export_payload.get("resumo", {}).get("data", "")),
+                }
+            )
+
+        annual_value = pd.to_numeric(item.get("ano"), errors="coerce")
+        if pd.isna(annual_value):
+            raise DiscoveryError(
+                "The SIM municipality export did not expose a valid annual total."
+            )
+        annual_total = int(annual_value)
+        if annual_total != sum(month_values):
+            raise DiscoveryError(
+                "The SIM municipality export annual total does not match the monthly sum "
+                f"for municipality {municipality_code}."
+            )
+
+    if not rows:
+        raise DiscoveryError(
+            "The SIM municipality export returned no municipality rows for the requested extract."
+        )
+
+    return rows
 
 
 def discover_ibge_asset(
@@ -765,56 +1127,147 @@ def discover_senatran_asset(
     )
 
 
-def discover_sim_asset(
+def plan_sim_panel_asset(
     requirement: RawFileRequirement,
     options: AcquisitionOptions,
     client: HttpClient,
-) -> DiscoveredAsset:
-    """Discover one official SIM resource from the OpenDataSUS dataset page."""
-    html_text = client.get_text(
-        SIM_DATASET_URL,
-        expected_substrings=("Mortalidade Geral", "__NEXT_DATA__"),
+) -> PlannedAsset:
+    """Plan one annual raw SIM extract built from the official panel API."""
+    year_payload = request_json_payload(
+        client,
+        f"{SIM_PANEL_API_URL}filtro/ano",
     )
-    resource = select_sim_resource(
-        html_text,
+    year_option = select_sim_panel_year(
+        year_payload,
         preferred_year=options.sim_year,
-        preferred_format=options.sim_format,
     )
+    selected_year = int(year_option["uid"])
+    label = str(year_option.get("nome", selected_year))
 
     note = (
-        f"Discovered from the official SIM dataset page in format "
-        f"{resource['format']}."
+        "Materialized from the official SVS/DAENT mortality panel API already "
+        "filtered to CID-10 V20-V29."
     )
-    if "prévio" in resource["name"].lower() or "previo" in resource["name"].lower():
-        note += " The selected official resource is marked as preliminary."
+    if "*" in label:
+        note += " The selected year is marked as preliminary on the official panel."
 
-    return DiscoveredAsset(
-        download_url=resource["url"],
-        filename=infer_filename_from_url(resource["url"]),
+    return PlannedAsset(
+        filename=build_sim_panel_extract_filename(selected_year),
         source_reference=requirement.source_reference,
         notes=note,
     )
 
 
-def discover_sih_asset(
+def materialize_sim_panel_asset(
     requirement: RawFileRequirement,
+    asset: PlannedAsset,
     options: AcquisitionOptions,
     client: HttpClient,
+) -> Path:
+    """Build one municipality-month SIM raw CSV from the official panel API."""
+    year_payload = request_json_payload(client, f"{SIM_PANEL_API_URL}filtro/ano")
+    year_option = select_sim_panel_year(
+        year_payload,
+        preferred_year=options.sim_year,
+    )
+    selected_year = int(year_option["uid"])
+    year_is_preliminary = "*" in str(year_option.get("nome", ""))
+
+    uf_payload = request_json_payload(client, f"{SIM_PANEL_API_URL}filtro/uf")
+    uf_results = uf_payload.get("resultados")
+    if not isinstance(uf_results, list) or not uf_results:
+        raise DiscoveryError("The SIM panel API did not return any UF option.")
+
+    rows: list[dict[str, Any]] = []
+    for uf_item in uf_results:
+        if not isinstance(uf_item, dict):
+            continue
+
+        uf_code = uf_item.get("uid")
+        uf_name = uf_item.get("nome")
+        if not isinstance(uf_code, int) or not isinstance(uf_name, str):
+            raise DiscoveryError("The SIM panel UF payload has an unexpected format.")
+
+        microrregiao_payload = request_json_payload(
+            client,
+            f"{SIM_PANEL_API_URL}filtro/microrregiao",
+            params={"uf": uf_code},
+        )
+        microrregiao_results = microrregiao_payload.get("resultados")
+        if not isinstance(microrregiao_results, list) or not microrregiao_results:
+            raise DiscoveryError(
+                f"The SIM panel did not expose microrregions for UF {uf_code}."
+            )
+
+        for microrregiao_item in microrregiao_results:
+            if not isinstance(microrregiao_item, dict):
+                continue
+
+            microrregiao_code = microrregiao_item.get("uid")
+            microrregiao_name = microrregiao_item.get("nome")
+            if not isinstance(microrregiao_code, int) or not isinstance(
+                microrregiao_name,
+                str,
+            ):
+                raise DiscoveryError(
+                    "The SIM panel microrregion payload has an unexpected format."
+                )
+
+            export_payload = request_json_payload(
+                client,
+                f"{SIM_PANEL_API_URL}exportar/localidade",
+                params=build_sim_panel_export_params(
+                    year=selected_year,
+                    uf_code=uf_code,
+                    microrregiao_code=microrregiao_code,
+                ),
+            )
+            rows.extend(
+                build_sim_panel_monthly_rows(
+                    export_payload,
+                    year=selected_year,
+                    uf_code=uf_code,
+                    uf_name=uf_name,
+                    microrregiao_code=microrregiao_code,
+                    microrregiao_name=microrregiao_name,
+                    year_is_preliminary=year_is_preliminary,
+                )
+            )
+
+    extract_frame = pd.DataFrame(rows).sort_values(
+        ["year", "month", "municipality_code"],
+        ignore_index=True,
+    )
+    requirement.local_directory.mkdir(parents=True, exist_ok=True)
+    output_path = requirement.local_directory / asset.filename
+    extract_frame.to_csv(output_path, index=False)
+    return output_path
+
+
+def discover_datasus_transfer_asset(
+    *,
+    requirement: RawFileRequirement,
+    source: str,
+    file_type: str,
+    year: int | None,
+    month: int | None,
+    uf: str | None,
+    client: HttpClient,
 ) -> DiscoveredAsset:
-    """Discover one official SIH/SUS raw file using the DATASUS transfer flow."""
-    if options.sih_year is None or options.sih_month is None or options.sih_uf is None:
+    """Discover one raw file through the official DATASUS transfer endpoint."""
+    if year is None or month is None or uf is None:
         raise ConfigurationError(
-            "Provide --sih-year, --sih-month, and --sih-uf to request one official SIH/SUS file"
+            "Provide --year, --month, and --uf style parameters for this official transfer flow"
         )
 
-    uf = options.sih_uf.upper()
+    normalized_uf = uf.upper()
     payload = build_datasus_transfer_payload(
-        file_type="RD",
+        file_type=file_type,
         modality="1",
-        source="SIHSUS",
-        year=options.sih_year,
-        month=options.sih_month,
-        uf=uf,
+        source=source,
+        year=year,
+        month=month,
+        uf=normalized_uf,
     )
     response_text = client.post_text(
         DATASUS_TRANSFER_URL,
@@ -827,7 +1280,7 @@ def discover_sih_asset(
     if not isinstance(files, list) or not files:
         raise DiscoveryError(
             "The DATASUS transfer endpoint did not return any file for the requested "
-            f"SIH/SUS competence {options.sih_year}-{options.sih_month:02d} and UF {uf}"
+            f"{source} competence {year}-{month:02d} and UF {normalized_uf}"
         )
 
     first_file = files[0]
@@ -850,6 +1303,72 @@ def discover_sih_asset(
             "Discovered from the official DATASUS transfer endpoint used by the public "
             "transfer page."
         ),
+    )
+
+
+def discover_sih_asset(
+    requirement: RawFileRequirement,
+    options: AcquisitionOptions,
+    client: HttpClient,
+) -> DiscoveredAsset:
+    """Discover one official SIH/SUS raw file using the DATASUS transfer flow."""
+    if options.sih_year is None or options.sih_month is None or options.sih_uf is None:
+        raise ConfigurationError(
+            "Provide --sih-year, --sih-month, and --sih-uf to request one official SIH/SUS file"
+        )
+
+    return discover_datasus_transfer_asset(
+        requirement=requirement,
+        source="SIHSUS",
+        file_type="RD",
+        year=options.sih_year,
+        month=options.sih_month,
+        uf=options.sih_uf,
+        client=client,
+    )
+
+
+def discover_cnes_establishment_asset(
+    requirement: RawFileRequirement,
+    options: AcquisitionOptions,
+    client: HttpClient,
+) -> DiscoveredAsset:
+    """Discover one official CNES establishment raw file via DATASUS transfer."""
+    if options.cnes_year is None or options.cnes_month is None or options.cnes_uf is None:
+        raise ConfigurationError(
+            "Provide --cnes-year, --cnes-month, and --cnes-uf to request one official CNES establishment file"
+        )
+
+    return discover_datasus_transfer_asset(
+        requirement=requirement,
+        source="CNES",
+        file_type="ST",
+        year=options.cnes_year,
+        month=options.cnes_month,
+        uf=options.cnes_uf,
+        client=client,
+    )
+
+
+def discover_cnes_bed_asset(
+    requirement: RawFileRequirement,
+    options: AcquisitionOptions,
+    client: HttpClient,
+) -> DiscoveredAsset:
+    """Discover one official CNES bed raw file via DATASUS transfer."""
+    if options.cnes_year is None or options.cnes_month is None or options.cnes_uf is None:
+        raise ConfigurationError(
+            "Provide --cnes-year, --cnes-month, and --cnes-uf to request one official CNES bed file"
+        )
+
+    return discover_datasus_transfer_asset(
+        requirement=requirement,
+        source="CNES",
+        file_type="LT",
+        year=options.cnes_year,
+        month=options.cnes_month,
+        uf=options.cnes_uf,
+        client=client,
     )
 
 
@@ -958,109 +1477,9 @@ def select_senatran_municipality_url(html_text: str) -> str:
     )
 
 
-def select_sim_resource(
-    html_text: str,
-    *,
-    preferred_year: int | None,
-    preferred_format: str,
-) -> dict[str, str]:
-    """Select one SIM resource from the OpenDataSUS dataset page."""
-    next_data = extract_next_data_json(html_text)
-    resources = extract_sim_resources_from_next_data(next_data)
-    format_upper = preferred_format.upper()
-
-    candidates: list[dict[str, str]] = []
-    for resource in resources:
-        name = str(resource.get("name", ""))
-        url = str(resource.get("url", ""))
-        resource_format = str(resource.get("format", "")).upper()
-        year = extract_year_from_text(name) or extract_year_from_text(url)
-        if not url or resource_format != format_upper or year is None:
-            continue
-        candidates.append(
-            {
-                "name": name,
-                "url": url,
-                "format": resource_format,
-                "year": str(year),
-            }
-        )
-
-    if preferred_year is not None:
-        exact_matches = [
-            resource
-            for resource in candidates
-            if int(resource["year"]) == preferred_year
-        ]
-        if not exact_matches:
-            raise DiscoveryError(
-                f"Could not find a SIM resource for year {preferred_year} in format {format_upper}."
-            )
-        exact_matches.sort(key=lambda item: is_preview_resource(item["name"]))
-        return exact_matches[0]
-
-    non_preview = [
-        resource
-        for resource in candidates
-        if not is_preview_resource(resource["name"])
-    ]
-    target_pool = non_preview or candidates
-    if not target_pool:
-        raise DiscoveryError(
-            f"Could not find any SIM resource in format {format_upper} on the dataset page."
-        )
-
-    target_pool.sort(key=lambda item: int(item["year"]), reverse=True)
-    return target_pool[0]
-
-
-def extract_sim_resources_from_next_data(next_data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Extract SIM resources from supported OpenDataSUS page payload shapes."""
-    page_props = next_data.get("props", {}).get("pageProps", {})
-    if not isinstance(page_props, dict):
-        raise DiscoveryError("OpenDataSUS pageProps payload has an unexpected format.")
-
-    direct_resources = page_props.get("resources")
-    if isinstance(direct_resources, list):
-        return [
-            resource
-            for resource in direct_resources
-            if isinstance(resource, dict)
-        ]
-
-    package_payload = page_props.get("package")
-    if isinstance(package_payload, dict) and isinstance(
-        package_payload.get("resources"),
-        list,
-    ):
-        return [
-            resource
-            for resource in package_payload["resources"]
-            if isinstance(resource, dict)
-        ]
-
-    raise DiscoveryError(
-        "Could not find a SIM resources list in the OpenDataSUS page payload."
-    )
-
-
 def extension_priority(extension: str) -> int:
     """Return a preference order for spreadsheet extensions."""
     return {"xls": 0, "ods": 1}.get(extension.lower(), 99)
-
-
-def extract_year_from_text(value: str) -> int | None:
-    """Extract the first four-digit year from a string."""
-    match = re.search(r"(19|20)\d{2}", value)
-    if match is None:
-        return None
-    return int(match.group(0))
-
-
-def is_preview_resource(name: str) -> bool:
-    """Return whether a dataset resource appears to be preliminary."""
-    lowered = name.lower()
-    return "prévio" in lowered or "previo" in lowered or "prev" in lowered
 
 
 def build_raw_source_handlers() -> tuple[RawSourceHandler, ...]:
@@ -1091,6 +1510,7 @@ def build_raw_source_handlers() -> tuple[RawSourceHandler, ...]:
                 ),
             ),
             discovery_function=discover_senatran_asset,
+            parameter_options_present=lambda options: options.senatran_year is not None,
         ),
         DiscoverableDownloadHandler(
             get_data_source("ibge_population"),
@@ -1116,6 +1536,7 @@ def build_raw_source_handlers() -> tuple[RawSourceHandler, ...]:
                 ),
             ),
             discovery_function=discover_ibge_asset,
+            parameter_options_present=lambda options: options.ibge_year is not None,
         ),
         DiscoverableDownloadHandler(
             get_data_source("sih_sus"),
@@ -1137,77 +1558,80 @@ def build_raw_source_handlers() -> tuple[RawSourceHandler, ...]:
                 ),
             ),
             discovery_function=discover_sih_asset,
+            parameter_options_present=lambda options: all(
+                value is not None
+                for value in (options.sih_year, options.sih_month, options.sih_uf)
+            ),
         ),
-        DiscoverableDownloadHandler(
+        ProgrammaticSourceHandler(
             get_data_source("sim_mortality"),
             requirements=(
                 RawFileRequirement(
-                    requirement_id="mortality_extracts",
-                    display_name="SIM mortality extracts",
+                    requirement_id="mortality_panel_extracts",
+                    display_name="SIM panel mortality extracts",
                     description=(
-                        "Official SIM mortality files from the public OpenDataSUS dataset."
+                        "Official municipality-month SIM extract generated from the "
+                        "SVS/DAENT CID-10 mortality panel API already filtered to V20-V29."
                     ),
                     filename_patterns=(
-                        "DO*OPEN_csv.zip",
-                        "DO*OPEN_xml.zip",
-                        "Mortalidade_Geral_*_csv.zip",
-                        "Mortalidade_Geral_*_xml.zip",
+                        "sim_panel_cid10_v20_v29_municipality_month_*.csv",
                     ),
-                    source_reference=SIM_DATASET_URL,
+                    source_reference=SIM_PANEL_PAGE_URL,
                     local_directory=get_data_source("sim_mortality").raw_directory,
                     notes=(
-                        "Discovery parses the public dataset page and selects the "
-                        "requested CSV/XML annual resource."
+                        "The panel marks years with * as subject to change. The page "
+                        "notes currently state that 2025 data were extracted in February 2026."
                     ),
                 ),
             ),
-            discovery_function=discover_sim_asset,
+            plan_function=plan_sim_panel_asset,
+            materialization_function=materialize_sim_panel_asset,
+            parameter_options_present=lambda options: options.sim_year is not None,
         ),
-        StaticDownloadHandler(
+        DiscoverableDownloadHandler(
             get_data_source("cnes_establishments"),
             requirements=(
                 RawFileRequirement(
-                    requirement_id="cnes_establishments_csv_snapshot",
-                    display_name="CNES establishments CSV snapshot",
-                    description="Official CNES establishments CSV snapshot.",
-                    filename_patterns=("cnes_estabelecimentos_csv.zip",),
-                    source_reference=(
-                        "https://dadosabertos.saude.gov.br/dataset/"
-                        "cnes-cadastro-nacional-de-estabelecimentos-de-saude"
-                    ),
+                    requirement_id="cnes_establishment_extracts",
+                    display_name="CNES establishment extracts",
+                    description="Official CNES ST files for one UF and competence.",
+                    filename_patterns=("ST*.dbc", "ST*.dbf", "ST*.zip"),
+                    source_reference="https://datasus.saude.gov.br/transferencia-de-arquivos",
                     local_directory=get_data_source("cnes_establishments").raw_directory,
-                    download_url=(
-                        "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/"
-                        "cnes_estabelecimentos_csv.zip"
-                    ),
                     notes=(
-                        "Verified from the official resource page on March 29, 2026."
+                        "Uses the official DATASUS transfer flow for CNES/ST. Provide "
+                        "--cnes-year, --cnes-month, and --cnes-uf."
                     ),
                 ),
             ),
+            discovery_function=discover_cnes_establishment_asset,
+            parameter_options_present=lambda options: all(
+                value is not None
+                for value in (options.cnes_year, options.cnes_month, options.cnes_uf)
+            ),
         ),
-        StaticDownloadHandler(
+        DiscoverableDownloadHandler(
             get_data_source("cnes_hospital_beds"),
             requirements=(
                 RawFileRequirement(
-                    requirement_id="hospital_beds_csv_2026",
-                    display_name="CNES hospital beds 2026 CSV snapshot",
+                    requirement_id="hospital_bed_extracts",
+                    display_name="CNES hospital bed extracts",
                     description=(
-                        "Official 2026 hospital beds CSV snapshot from the Hospitais e "
-                        "Leitos dataset."
+                        "Official CNES LT files for one UF and competence."
                     ),
-                    filename_patterns=("Leitos_csv_2026.zip",),
-                    source_reference="https://dadosabertos.saude.gov.br/dataset/hospitais-e-leitos",
+                    filename_patterns=("LT*.dbc", "LT*.dbf", "LT*.zip"),
+                    source_reference="https://datasus.saude.gov.br/transferencia-de-arquivos",
                     local_directory=get_data_source("cnes_hospital_beds").raw_directory,
-                    download_url=(
-                        "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/Leitos_SUS/"
-                        "Leitos_csv_2026.zip"
-                    ),
                     notes=(
-                        "This is an explicit yearly asset, so the config should be "
-                        "revisited when the reference year changes."
+                        "Uses the official DATASUS transfer flow for CNES/LT. Provide "
+                        "--cnes-year, --cnes-month, and --cnes-uf."
                     ),
                 ),
+            ),
+            discovery_function=discover_cnes_bed_asset,
+            parameter_options_present=lambda options: all(
+                value is not None
+                for value in (options.cnes_year, options.cnes_month, options.cnes_uf)
             ),
         ),
     )

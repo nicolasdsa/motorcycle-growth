@@ -11,6 +11,7 @@ from motorcycle_growth.etl_utils.schema import (
 )
 from motorcycle_growth.etl_utils.text import (
     clean_numeric_code,
+    normalize_co_ibge_like_code,
     normalize_label,
     normalize_lookup_text,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "build_normalized_column_map",
     "clean_numeric_code",
     "find_column_by_aliases",
+    "normalize_co_ibge_like_code",
     "normalize_label",
     "normalize_lookup_text",
     "resolve_output_path",

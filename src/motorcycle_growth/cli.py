@@ -88,6 +88,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="SIH/SUS UF code for one official competence file, for example SP.",
     )
     acquire_raw_data_parser.add_argument(
+        "--cnes-year",
+        type=int,
+        help="CNES year for one official establishment/bed competence file.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--cnes-month",
+        type=int,
+        help="CNES month for one official establishment/bed competence file.",
+    )
+    acquire_raw_data_parser.add_argument(
+        "--cnes-uf",
+        help="CNES UF code for one official competence file, for example SP.",
+    )
+    acquire_raw_data_parser.add_argument(
         "--cache-ttl-hours",
         type=int,
         default=24,
@@ -547,6 +561,9 @@ def main() -> int:
             sih_year=args.sih_year,
             sih_month=args.sih_month,
             sih_uf=args.sih_uf.upper() if args.sih_uf else None,
+            cnes_year=args.cnes_year,
+            cnes_month=args.cnes_month,
+            cnes_uf=args.cnes_uf.upper() if args.cnes_uf else None,
             cache_ttl_hours=args.cache_ttl_hours,
         )
         return acquire_raw_data(

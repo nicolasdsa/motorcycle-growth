@@ -48,3 +48,33 @@ def clean_numeric_code(value: object, *, width: int) -> str | None:
         digits_only = digits_only[-width:]
 
     return digits_only.zfill(width)
+
+
+def normalize_co_ibge_like_code(value: object) -> str | None:
+    """Normalize CO_IBGE-like identifiers to a 7-digit string.
+
+    This defensive rule keeps compatibility with sources that may persist the
+    6-digit municipality key or another shortened numeric identifier in a field
+    expected to hold a 7-digit CO_IBGE code. Shorter values are right-padded
+    with zeros until they reach 7 digits.
+    """
+    if pd.isna(value):
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    integer_like_match = re.fullmatch(r"(?P<digits>\d+)\.0+", text)
+    if integer_like_match is not None:
+        digits_only = integer_like_match.group("digits")
+    else:
+        digits_only = re.sub(r"\D", "", text)
+
+    if not digits_only:
+        return None
+
+    if len(digits_only) > 7:
+        return None
+
+    return digits_only.ljust(7, "0")

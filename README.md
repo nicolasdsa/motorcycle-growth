@@ -58,6 +58,12 @@ poetry run motorcycle-growth acquire-raw-data
 poetry run motorcycle-growth acquire-raw-data --sih-year 2025 --sih-month 1 --sih-uf SP
 ```
 
+9. Request one SIM panel extract for a specific year and one CNES competence:
+
+```bash
+poetry run motorcycle-growth acquire-raw-data --sim-year 2025 --cnes-year 2025 --cnes-month 1 --cnes-uf SP
+```
+
 ## Project structure
 
 ```text
@@ -84,6 +90,14 @@ The repository now includes:
 The raw ingestion CLI now supports:
 
 - light public-page discovery for SENATRAN and IBGE
-- public dataset-page discovery for SIM
+- official SVS/DAENT panel API extraction for SIM municipality-month V20-V29 data
 - official transfer-flow discovery for one SIH/SUS file at a time
+- official transfer-flow discovery for one CNES establishment and bed file at a time
 - retry with backoff and a small local discovery cache
+
+## Current source notes
+
+- SIM 2025 now comes from the official SVS/DAENT CID-10 mortality panel API rather than the older OpenDataSUS annual files.
+- The panel marks years with `*` as subject to change. On the official page, `2025*` is presented as preliminary and the note currently says: data for 2025 were extracted in February 2026.
+- The repository treats the panel extract as a preliminary source that should be rechecked on a roughly bimonthly cadence, but the official page text verified in code only confirms the `*` preliminary flag and the extraction reference date.
+- CNES raw acquisition is now parameterized through the official DATASUS transfer flow with `ST` (establishments) and `LT` (beds) files by year, month, and UF.

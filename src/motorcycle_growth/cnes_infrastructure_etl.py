@@ -7,6 +7,7 @@ from io import BytesIO
 from pathlib import Path
 import csv
 import re
+import tempfile
 import zipfile
 
 import pandas as pd
@@ -35,7 +36,7 @@ CNES_INTERIM_DIR = INTERIM_DATA_DIR / "cnes"
 DEFAULT_OUTPUT_FILE_NAME = "cnes_infrastructure_municipality_year.parquet"
 DEFAULT_METADATA_FILE_NAME = "cnes_infrastructure_municipality_year_metadata.json"
 
-SUPPORTED_TABULAR_SUFFIXES = (".parquet", ".csv", ".txt", ".zip")
+SUPPORTED_TABULAR_SUFFIXES = (".parquet", ".csv", ".txt", ".dbf", ".dbc", ".zip")
 DELIMITER_CANDIDATES = ";,\t|"
 SAMU_KEYWORD_PATTERN = re.compile(r"\bSAMU\b")
 
@@ -50,6 +51,10 @@ class CnesInfrastructureSchemaError(CnesInfrastructureEtlError):
 
 class CnesInfrastructureDataQualityError(CnesInfrastructureEtlError):
     """Raised when cleaned CNES data is not fit for downstream use."""
+
+
+class CnesInfrastructureDependencyError(CnesInfrastructureEtlError):
+    """Raised when one optional CNES reader dependency is missing."""
 
 
 @dataclass(frozen=True)
@@ -209,6 +214,40 @@ def _load_delimited_frame(input_path: Path) -> pd.DataFrame:
     return _read_delimited_bytes(payload)
 
 
+def _load_dbf_frame(input_path: Path) -> pd.DataFrame:
+    """Read one DBF CNES extract using an optional dependency."""
+    try:
+        from dbfread import DBF
+    except ImportError as exc:
+        msg = (
+            "Reading CNES .dbf files requires the optional dependency 'dbfread'. "
+            "Install project dependencies with Poetry before running this ETL step."
+        )
+        raise CnesInfrastructureDependencyError(msg) from exc
+
+    records = DBF(str(input_path), load=True, char_decode_errors="ignore")
+    return pd.DataFrame(iter(records))
+
+
+def _load_dbc_frame(input_path: Path) -> pd.DataFrame:
+    """Read one DBC CNES extract by decompressing it to a temporary DBF file."""
+    try:
+        import datasus_dbc
+    except ImportError as exc:
+        msg = (
+            "Reading CNES .dbc files requires the runtime dependency "
+            "'datasus-dbc'. Install project dependencies with Poetry before running "
+            "this ETL step."
+        )
+        raise CnesInfrastructureDependencyError(msg) from exc
+
+    dbf_bytes = datasus_dbc.decompress_bytes(input_path.read_bytes())
+    with tempfile.NamedTemporaryFile(suffix=".dbf", delete=True) as temp_file:
+        temp_file.write(dbf_bytes)
+        temp_file.flush()
+        return _load_dbf_frame(Path(temp_file.name))
+
+
 def _load_zip_member_frame(input_path: Path) -> pd.DataFrame:
     """Read one supported tabular file stored inside a ZIP archive."""
     with zipfile.ZipFile(input_path) as archive:
@@ -217,7 +256,7 @@ def _load_zip_member_frame(input_path: Path) -> pd.DataFrame:
             for name in archive.namelist()
             if not name.endswith("/")
             and not Path(name).name.startswith(".")
-            and Path(name).suffix.lower() in {".parquet", ".csv", ".txt"}
+            and Path(name).suffix.lower() in {".parquet", ".csv", ".txt", ".dbf", ".dbc"}
         ]
 
         if not supported_members:
@@ -240,6 +279,16 @@ def _load_zip_member_frame(input_path: Path) -> pd.DataFrame:
 
         if member_suffix == ".parquet":
             return pd.read_parquet(BytesIO(archive.read(member_name)))
+        if member_suffix == ".dbf":
+            with tempfile.NamedTemporaryFile(suffix=".dbf", delete=True) as temp_file:
+                temp_file.write(archive.read(member_name))
+                temp_file.flush()
+                return _load_dbf_frame(Path(temp_file.name))
+        if member_suffix == ".dbc":
+            with tempfile.NamedTemporaryFile(suffix=".dbc", delete=True) as temp_file:
+                temp_file.write(archive.read(member_name))
+                temp_file.flush()
+                return _load_dbc_frame(Path(temp_file.name))
 
         return _read_delimited_bytes(archive.read(member_name))
 
@@ -253,6 +302,10 @@ def load_cnes_raw_frame(input_path: Path) -> pd.DataFrame:
         return pd.read_parquet(input_path)
     if suffix in {".csv", ".txt"}:
         return _load_delimited_frame(input_path)
+    if suffix == ".dbf":
+        return _load_dbf_frame(input_path)
+    if suffix == ".dbc":
+        return _load_dbc_frame(input_path)
     if suffix == ".zip":
         return _load_zip_member_frame(input_path)
 

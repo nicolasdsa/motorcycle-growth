@@ -15,6 +15,7 @@ from motorcycle_growth.etl_utils import (
     build_normalized_column_map,
     clean_numeric_code,
     find_column_by_aliases,
+    normalize_co_ibge_like_code,
     normalize_label,
     resolve_output_path,
     save_parquet_frame,
@@ -263,7 +264,7 @@ def standardize_population_frame(
     working_frame["population"] = working_frame["population"].round().astype("Int64")
     working_frame["CO_IBGE"] = (
         working_frame["uf_code"] + working_frame["municipality_code"]
-    )
+    ).map(normalize_co_ibge_like_code)
     working_frame["year"] = int(year)
 
     assert_mask_empty(

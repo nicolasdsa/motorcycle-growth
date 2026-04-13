@@ -15,6 +15,7 @@ from motorcycle_growth.etl_utils import (
     assert_mask_empty,
     assert_no_duplicate_keys,
     build_normalized_column_map,
+    normalize_co_ibge_like_code,
     normalize_label,
     normalize_lookup_text,
     resolve_output_path,
@@ -534,7 +535,7 @@ def build_population_crosswalk(population_path: Path) -> pd.DataFrame:
         raise SenatranFleetSchemaError(msg)
 
     crosswalk = population_frame[["CO_IBGE", "municipality_name"]].copy()
-    crosswalk["CO_IBGE"] = crosswalk["CO_IBGE"].astype("string").str.strip()
+    crosswalk["CO_IBGE"] = crosswalk["CO_IBGE"].map(normalize_co_ibge_like_code)
     crosswalk["uf"] = crosswalk["CO_IBGE"].str[:2].map(UF_CODE_TO_ABBR)
     crosswalk["municipality_name"] = crosswalk["municipality_name"].astype("string").str.strip()
     crosswalk["municipality_lookup_key"] = crosswalk["municipality_name"].map(
@@ -658,6 +659,10 @@ def standardize_senatran_monthly_frame(
             f"Unmatched pairs: {unmatched_list}"
         )
         raise SenatranFleetDataQualityError(msg)
+
+    standardized_frame["CO_IBGE"] = standardized_frame["CO_IBGE"].map(
+        normalize_co_ibge_like_code
+    )
 
     assert_no_duplicate_keys(
         standardized_frame,

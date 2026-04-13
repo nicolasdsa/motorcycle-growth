@@ -43,6 +43,12 @@ SUPPORTED_TABULAR_SUFFIXES = (
 )
 
 DELIMITER_CANDIDATES = ";,\t|"
+SIM_PANEL_EXTRACT_REQUIRED_COLUMNS = {
+    "municipality_code",
+    "year",
+    "month",
+    "motorcycle_deaths",
+}
 
 
 class SimMortalityEtlError(RuntimeError):
@@ -86,6 +92,7 @@ class SimSchemaResolution:
 class SimQualitySummary:
     """Small quality summary emitted after the ETL succeeds."""
 
+    source_layout: str
     raw_file_count: int
     raw_row_count: int
     filtered_row_count: int
@@ -440,6 +447,12 @@ def resolve_sim_schema(raw_frame: pd.DataFrame) -> SimSchemaResolution:
     )
 
 
+def is_sim_panel_extract(raw_frame: pd.DataFrame) -> bool:
+    """Return whether one raw frame matches the SIM panel monthly extract layout."""
+    normalized_columns = {str(column_name).strip() for column_name in raw_frame.columns}
+    return SIM_PANEL_EXTRACT_REQUIRED_COLUMNS.issubset(normalized_columns)
+
+
 def clean_municipality_code(value: object) -> str | None:
     """Normalize one municipality code without assuming a universal code width."""
     if pd.isna(value):
@@ -473,12 +486,100 @@ def is_motorcycle_occupant_cid(value: object) -> bool:
     return normalized_code[:3] in MOTORCYCLE_CID_PREFIXES
 
 
+def standardize_sim_panel_extract_frame(
+    raw_frame: pd.DataFrame,
+    *,
+    source_file_name: str,
+) -> tuple[pd.DataFrame, SimSchemaResolution, tuple[str, ...]]:
+    """Validate and standardize one SIM panel monthly extract."""
+    working_frame = raw_frame[
+        ["municipality_code", "year", "month", "motorcycle_deaths"]
+    ].copy()
+
+    working_frame["municipality_code"] = working_frame["municipality_code"].map(
+        clean_municipality_code
+    )
+    working_frame["year"] = pd.to_numeric(working_frame["year"], errors="coerce")
+    working_frame["month"] = pd.to_numeric(working_frame["month"], errors="coerce")
+    working_frame["motorcycle_deaths"] = pd.to_numeric(
+        working_frame["motorcycle_deaths"],
+        errors="coerce",
+    )
+
+    assert_mask_empty(
+        working_frame["municipality_code"].isna(),
+        error_cls=SimMortalityDataQualityError,
+        message="SIM panel extract contains invalid municipality codes",
+    )
+    assert_mask_empty(
+        working_frame["year"].isna(),
+        error_cls=SimMortalityDataQualityError,
+        message="SIM panel extract contains invalid year values",
+    )
+    assert_mask_empty(
+        working_frame["month"].isna(),
+        error_cls=SimMortalityDataQualityError,
+        message="SIM panel extract contains invalid month values",
+    )
+    assert_mask_empty(
+        working_frame["motorcycle_deaths"].isna(),
+        error_cls=SimMortalityDataQualityError,
+        message="SIM panel extract contains invalid motorcycle death counts",
+    )
+    assert_mask_empty(
+        ~working_frame["month"].between(1, 12),
+        error_cls=SimMortalityDataQualityError,
+        message="SIM panel extract contains months outside the 1-12 range",
+    )
+    assert_mask_empty(
+        working_frame["motorcycle_deaths"].lt(0),
+        error_cls=SimMortalityDataQualityError,
+        message="SIM panel extract contains negative motorcycle death counts",
+    )
+
+    working_frame["year"] = working_frame["year"].astype("int64")
+    working_frame["month"] = working_frame["month"].astype("int64")
+    working_frame["motorcycle_deaths"] = working_frame["motorcycle_deaths"].astype("int64")
+    working_frame["municipality_scope"] = "residence"
+    working_frame["source_municipality_column"] = "municipality_code"
+    working_frame["source_file_name"] = source_file_name
+
+    schema = SimSchemaResolution(
+        municipality=MunicipalityColumnResolution(
+            column_name="municipality_code",
+            scope="residence",
+        ),
+        year=YearResolution(column_name="year", source_type="year"),
+        cause_columns=("panel_indicator_v20_v29",),
+    )
+    return (
+        working_frame[
+            [
+                "municipality_code",
+                "year",
+                "motorcycle_deaths",
+                "municipality_scope",
+                "source_municipality_column",
+                "source_file_name",
+            ]
+        ].reset_index(drop=True),
+        schema,
+        ("panel_indicator_v20_v29",),
+    )
+
+
 def standardize_sim_mortality_frame(
     raw_frame: pd.DataFrame,
     *,
     source_file_name: str,
 ) -> tuple[pd.DataFrame, SimSchemaResolution, tuple[str, ...]]:
     """Validate and standardize one SIM raw frame to death-record metrics."""
+    if is_sim_panel_extract(raw_frame):
+        return standardize_sim_panel_extract_frame(
+            raw_frame,
+            source_file_name=source_file_name,
+        )
+
     schema = resolve_sim_schema(raw_frame)
 
     selected_columns = [
@@ -604,16 +705,30 @@ def run_sim_mortality_etl(
     raw_row_count = 0
     cause_columns_with_matches: set[str] = set()
     resolved_schema: SimSchemaResolution | None = None
+    source_layout: str | None = None
 
     for input_path in resolved_input_paths:
         raw_frame = load_sim_raw_frame(input_path)
         raw_row_count += len(raw_frame)
+        current_layout = (
+            "panel_api_monthly_extract"
+            if is_sim_panel_extract(raw_frame)
+            else "record_level_sim"
+        )
         standardized_frame, schema, matched_columns = standardize_sim_mortality_frame(
             raw_frame,
             source_file_name=input_path.name,
         )
         standardized_frames.append(standardized_frame)
         cause_columns_with_matches.update(matched_columns)
+        if source_layout is None:
+            source_layout = current_layout
+        elif source_layout != current_layout:
+            msg = (
+                "The SIM ETL found mixed raw layouts across input files. Do not mix "
+                "record-level SIM files with panel API extracts in the same execution."
+            )
+            raise SimMortalitySchemaError(msg)
 
         if resolved_schema is None:
             resolved_schema = schema
@@ -643,6 +758,7 @@ def run_sim_mortality_etl(
     )
 
     summary = SimQualitySummary(
+        source_layout=source_layout or "unknown",
         raw_file_count=len(resolved_input_paths),
         raw_row_count=raw_row_count,
         filtered_row_count=len(combined_frame),
@@ -671,14 +787,26 @@ def run_sim_mortality_etl(
                     "or occurrence municipality according to the raw columns available."
                 ),
                 (
-                    "CID-10 filtering uses the cause-of-death columns listed in "
-                    "cause_columns_considered and keeps records with any V20-V29 "
-                    "code found there."
+                    "When source_layout is record_level_sim, CID-10 filtering uses "
+                    "the cause-of-death columns listed in cause_columns_considered "
+                    "and keeps records with any V20-V29 code found there."
                 ),
                 (
                     "This ETL prioritizes CODMUNRES when available, so the default "
                     "municipality-year mortality panel is residence-based unless the "
                     "raw layout only exposes occurrence municipality."
+                ),
+                (
+                    "When source_layout is panel_api_monthly_extract, the raw file is "
+                    "already filtered to the official panel indicator for CID-10 "
+                    "V20-V29 and is treated as a preliminary residence-based extract "
+                    "when the official panel marks the year with *."
+                ),
+                (
+                    "Operational note: the repository rechecks this panel extract on a "
+                    "roughly bimonthly cadence, but the official page text verified in "
+                    "code only confirms the preliminary * marker and the extraction "
+                    "reference date shown on the panel."
                 ),
             ],
         },

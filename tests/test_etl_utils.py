@@ -13,6 +13,7 @@ from motorcycle_growth.etl_utils import (
     build_normalized_column_map,
     clean_numeric_code,
     find_column_by_aliases,
+    normalize_co_ibge_like_code,
     normalize_label,
     normalize_lookup_text,
     resolve_output_path,
@@ -33,6 +34,13 @@ def test_clean_numeric_code_zero_pads_codes() -> None:
     """Numeric code normalization should keep only digits and apply zero padding."""
     assert clean_numeric_code("50308.0", width=5) == "50308"
     assert clean_numeric_code(35, width=2) == "35"
+
+
+def test_normalize_co_ibge_like_code_right_pads_short_values() -> None:
+    """CO_IBGE-like codes should remain strings and reach seven digits."""
+    assert normalize_co_ibge_like_code("3550308") == "3550308"
+    assert normalize_co_ibge_like_code(110015) == "1100150"
+    assert normalize_co_ibge_like_code("110015.0") == "1100150"
 
 
 def test_build_normalized_column_map_and_find_column_by_aliases() -> None:

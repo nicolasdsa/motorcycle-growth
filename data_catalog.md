@@ -93,37 +93,35 @@ The CNES input was split into two raw folders because emergency-care capacity wi
 
 ### 4. SIM mortality data
 
-- Institution: Ministério da Saúde / DATASUS / OpenDataSUS
+- Institution: Ministério da Saúde / SVS / DAENT / SIM
 - Purpose in the project: measure mortality associated with motorcycle-related causes and support mortality-rate calculations
 - Unit of analysis: death record
 - Expected geographic key: municipality code for residence and/or occurrence; the final choice depends on the analytical design
 - Expected time key: year of death, and possibly month if used later
 - Likely automation status: likely feasible
-- Why the status is "likely feasible": OpenDataSUS lists the SIM dataset with machine-readable resources, but the exact downloader should still be validated against the current official resources before it is treated as production-ready
+- Why the status is "likely feasible": the official SVS/DAENT mortality panel exposes a public API used by the panel itself, which can already return municipality-month V20-V29 aggregates for recent years such as 2025
 - Official pages:
-  - https://dadosabertos.saude.gov.br/dataset
-  - https://opendatasus.saude.gov.br/ne/dataset/groups/sim
+  - https://svs.aids.gov.br/daent/centrais-de-conteudos/paineis-de-monitoramento/mortalidade/cid10/
   - https://datasus.saude.gov.br/estatisticas-vitais/
 - Files needed for a manual first pass:
-  - annual SIM files for all years in the study period
-  - the official dictionary or metadata needed to identify cause-of-death fields and municipality fields
+  - annual municipality-month extracts built from the official panel API for the study period
+  - the official panel notes that clarify preliminary years and extraction reference dates
 - Expected filename pattern: preserve the original official file names because the current resource naming was not validated in code here
-- Where they should come from: the official OpenDataSUS SIM dataset resources or other official DATASUS mortality pages
+- Where they should come from: the official SVS/DAENT mortality panel API or other official DATASUS mortality pages when the panel is not sufficient
 - Where to place them: `data/raw/sim_mortality/`
-- Important note: the future ETL will need an explicit rule for selecting motorcycle-related deaths from the official cause fields.
+- Important note: the panel year marked with `*` is preliminary. The page currently states that 2025 data were extracted in February 2026.
 
 ### 5. CNES establishments data
 
-- Institution: Ministério da Saúde / OpenDataSUS / CNES
+- Institution: Ministério da Saúde / DATASUS / CNES
 - Purpose in the project: identify emergency-care infrastructure, including establishment presence and potential SAMU-related service coverage
 - Unit of analysis: health establishment record
 - Expected geographic key: municipality code, CNES establishment identifier, and UF
 - Expected time key: update date or reference period published by the source
 - Likely automation status: likely feasible
-- Why the status is "likely feasible": the official CNES dataset page exposes API and flat-file resources and appears to be regularly updated
+- Why the status is "likely feasible": the official DATASUS transfer flow exposes CNES `ST` establishment files by year, month, and UF
 - Official pages:
-  - https://dadosabertos.saude.gov.br/dataset/cnes-cadastro-nacional-de-estabelecimentos-de-saude
-  - https://opendatasus.saude.gov.br/ne/dataset/cnes-cadastro-nacional-de-estabelecimentos-de-saude
+  - https://datasus.saude.gov.br/transferencia-de-arquivos/
 - Files needed for a manual first pass:
   - establishment files for the study period
   - supporting metadata or dictionary material needed to identify emergency establishments, mobile units, and service types
@@ -134,16 +132,15 @@ The CNES input was split into two raw folders because emergency-care capacity wi
 
 ### 6. CNES hospital beds data
 
-- Institution: Ministério da Saúde / OpenDataSUS / CNES
+- Institution: Ministério da Saúde / DATASUS / CNES
 - Purpose in the project: measure emergency and critical-care capacity, especially ICU-related bed availability
 - Unit of analysis: hospital-bed record or hospital-bed aggregate, depending on the official asset
 - Expected geographic key: municipality code, establishment identifier, and UF
 - Expected time key: reference year or update period, depending on the resource selected
 - Likely automation status: likely feasible
-- Why the status is "likely feasible": the official "Hospitais e Leitos" dataset exposes downloadable CSV resources and is updated on the official portal
+- Why the status is "likely feasible": the official DATASUS transfer flow exposes CNES `LT` bed files by year, month, and UF
 - Official pages:
-  - https://dadosabertos.saude.gov.br/dataset/hospitais-e-leitos
-  - https://opendatasus.saude.gov.br/ne/dataset/hospitais-e-leitos
+  - https://datasus.saude.gov.br/transferencia-de-arquivos/
 - Files needed for a manual first pass:
   - hospital and bed files covering the study period
   - metadata needed to identify ICU beds and other emergency-relevant bed categories

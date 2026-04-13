@@ -13,6 +13,7 @@ from motorcycle_growth.senatran_fleet_etl import (
     aggregate_monthly_to_year,
     apply_municipality_alias,
     build_frame_from_sheet_rows,
+    build_population_crosswalk,
     infer_senatran_period,
     run_senatran_fleet_etl,
     standardize_senatran_monthly_frame,
@@ -151,6 +152,36 @@ def test_standardize_senatran_monthly_frame_links_municipality_codes() -> None:
             "motorcycles_total": 21,
             "source_file_name": "fleet_feb_2026.xlsx",
             "municipality_name_source": "SAO PAULO",
+        },
+    ]
+
+
+def test_build_population_crosswalk_normalizes_short_co_ibge_values(
+    tmp_path: Path,
+) -> None:
+    """The SENATRAN linkage should accept short CO_IBGE-like codes defensively."""
+    population_path = tmp_path / "population.parquet"
+    pd.DataFrame(
+        {
+            "CO_IBGE": ["110015", "3550308"],
+            "municipality_name": ["Alta Floresta D'Oeste", "São Paulo"],
+        }
+    ).to_parquet(population_path, index=False)
+
+    crosswalk = build_population_crosswalk(population_path)
+
+    assert crosswalk.to_dict(orient="records") == [
+        {
+            "CO_IBGE": "1100150",
+            "uf": "RO",
+            "municipality_name": "Alta Floresta D'Oeste",
+            "municipality_lookup_key": "ALTA FLORESTA D OESTE",
+        },
+        {
+            "CO_IBGE": "3550308",
+            "uf": "SP",
+            "municipality_name": "São Paulo",
+            "municipality_lookup_key": "SAO PAULO",
         },
     ]
 

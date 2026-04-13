@@ -2,6 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Bash: Run 2025 From Scratch",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bash scripts/run_2025_from_scratch.sh",
+      "cwd": "${workspaceFolder}"
+    },
+    {
       "name": "Python: Check Project Structure",
       "type": "python",
       "request": "launch",

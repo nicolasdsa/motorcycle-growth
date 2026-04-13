@@ -165,7 +165,7 @@ DATA_SOURCES: tuple[DataSourceMetadata, ...] = (
     DataSourceMetadata(
         dataset_id="sim_mortality",
         name="SIM mortality data",
-        institution="Ministério da Saúde / DATASUS / OpenDataSUS",
+        institution="Ministério da Saúde / SVS / DAENT / SIM",
         purpose=(
             "Measure mortality associated with motorcycle-related causes and "
             "support mortality-rate calculations."
@@ -178,32 +178,32 @@ DATA_SOURCES: tuple[DataSourceMetadata, ...] = (
         expected_time_key="Year of death, and possibly month in later analyses.",
         automation_level=AutomationLevel.LIKELY_FEASIBLE,
         automation_notes=(
-            "OpenDataSUS lists SIM resources in machine-readable formats, but the "
-            "exact downloader still needs validation against the current resources."
+            "The official SVS/DAENT mortality panel exposes a public API that can "
+            "return municipality-month V20-V29 aggregates for recent years."
         ),
         raw_directory=RAW_DATA_DIR / "sim_mortality",
         official_pages=(
-            "https://dadosabertos.saude.gov.br/dataset",
-            "https://opendatasus.saude.gov.br/ne/dataset/groups/sim",
+            "https://svs.aids.gov.br/daent/centrais-de-conteudos/"
+            "paineis-de-monitoramento/mortalidade/cid10/",
             "https://datasus.saude.gov.br/estatisticas-vitais/",
         ),
         manual_files_needed=(
-            "Annual SIM files for all years in the study period.",
-            "Official dictionary or metadata for cause-of-death and municipality fields.",
+            "Annual municipality-month SIM extracts for the study period.",
+            "Official panel notes for preliminary years and extraction reference dates.",
         ),
         manual_source_instructions=(
-            "Download the official SIM resources from OpenDataSUS or other official "
-            "DATASUS mortality pages and place them under data/raw/sim_mortality/."
+            "Extract the official municipality-month API output from the SVS/DAENT "
+            "mortality panel and place the resulting files under data/raw/sim_mortality/."
         ),
         notes=(
-            "Motorcycle-related death definitions must be coded explicitly later "
-            "from the official cause fields."
+            "The panel marks preliminary years with *; the page currently notes that "
+            "2025 data were extracted in February 2026."
         ),
     ),
     DataSourceMetadata(
         dataset_id="cnes_establishments",
         name="CNES establishments data",
-        institution="Ministério da Saúde / OpenDataSUS / CNES",
+        institution="Ministério da Saúde / DATASUS / CNES",
         purpose=(
             "Identify emergency-care infrastructure, including establishment "
             "presence and potential SAMU-related service coverage."
@@ -213,24 +213,19 @@ DATA_SOURCES: tuple[DataSourceMetadata, ...] = (
         expected_time_key="Update date or source reference period.",
         automation_level=AutomationLevel.LIKELY_FEASIBLE,
         automation_notes=(
-            "The official CNES page exposes API and flat-file resources and appears "
-            "to be regularly updated."
+            "The official DATASUS transfer flow exposes CNES establishment files by "
+            "year, month, and UF."
         ),
         raw_directory=RAW_DATA_DIR / "cnes_establishments",
-        official_pages=(
-            "https://dadosabertos.saude.gov.br/dataset/"
-            "cnes-cadastro-nacional-de-estabelecimentos-de-saude",
-            "https://opendatasus.saude.gov.br/ne/dataset/"
-            "cnes-cadastro-nacional-de-estabelecimentos-de-saude",
-        ),
+        official_pages=("https://datasus.saude.gov.br/transferencia-de-arquivos/",),
         manual_files_needed=(
             "CNES establishment files for the study period.",
             "Official metadata needed to identify emergency establishments, mobile "
             "units, and service types.",
         ),
         manual_source_instructions=(
-            "Download the official CNES establishment resources and place them under "
-            "data/raw/cnes_establishments/."
+            "Download the official CNES ST files from the DATASUS transfer flow and "
+            "place them under data/raw/cnes_establishments/."
         ),
         notes=(
             "SAMU should be modeled as a filtered CNES subset unless a separate "
@@ -240,7 +235,7 @@ DATA_SOURCES: tuple[DataSourceMetadata, ...] = (
     DataSourceMetadata(
         dataset_id="cnes_hospital_beds",
         name="CNES hospital beds data",
-        institution="Ministério da Saúde / OpenDataSUS / CNES",
+        institution="Ministério da Saúde / DATASUS / CNES",
         purpose=(
             "Measure emergency and critical-care capacity, especially ICU-related "
             "bed availability."
@@ -250,22 +245,19 @@ DATA_SOURCES: tuple[DataSourceMetadata, ...] = (
         expected_time_key="Reference year or update period, depending on the resource.",
         automation_level=AutomationLevel.LIKELY_FEASIBLE,
         automation_notes=(
-            "The official Hospitais e Leitos dataset exposes downloadable resources "
-            "and appears suitable for scripted intake after validation."
+            "The official DATASUS transfer flow exposes CNES bed files by year, "
+            "month, and UF."
         ),
         raw_directory=RAW_DATA_DIR / "cnes_hospital_beds",
-        official_pages=(
-            "https://dadosabertos.saude.gov.br/dataset/hospitais-e-leitos",
-            "https://opendatasus.saude.gov.br/ne/dataset/hospitais-e-leitos",
-        ),
+        official_pages=("https://datasus.saude.gov.br/transferencia-de-arquivos/",),
         manual_files_needed=(
             "Hospital and bed files covering the study period.",
             "Official metadata needed to identify ICU beds and other emergency-relevant "
             "bed categories.",
         ),
         manual_source_instructions=(
-            "Download the official Hospitais e Leitos resources and place them under "
-            "data/raw/cnes_hospital_beds/."
+            "Download the official CNES LT files from the DATASUS transfer flow and "
+            "place them under data/raw/cnes_hospital_beds/."
         ),
         notes=(
             "ICU definitions and bed-category filters should be documented later in "
