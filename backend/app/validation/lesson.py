@@ -54,6 +54,7 @@ def _collect_ids(spec: LessonSpecification) -> tuple[set[str], list[str]]:
     ids.extend(item.id for item in spec.questions)
     ids.extend(item.id for item in spec.sources)
     ids.append(spec.interactive_activity.id)
+    ids.append(spec.summary.concept_map.id)
     seen: set[str] = set()
     duplicates: list[str] = []
     for item_id in ids:
@@ -105,6 +106,16 @@ def validate_lesson(spec: LessonSpecification) -> None:
             if relation.source not in local_ids or relation.target not in local_ids:
                 errors.append(f"Relação quebrada em {visual.id}: {relation.source} → {relation.target}")
     del element_ids
+
+    concept_map = spec.summary.concept_map
+    concept_node_ids = [node.id for node in concept_map.nodes]
+    duplicate_concept_nodes = {node_id for node_id in concept_node_ids if concept_node_ids.count(node_id) > 1}
+    if duplicate_concept_nodes:
+        errors.append(f"IDs de nós duplicados no mapa conceitual: {', '.join(sorted(duplicate_concept_nodes))}")
+    known_concept_nodes = set(concept_node_ids)
+    for edge in concept_map.edges:
+        if edge.source not in known_concept_nodes or edge.target not in known_concept_nodes:
+            errors.append(f"Aresta quebrada no mapa conceitual: {edge.source} → {edge.target}")
 
     _scan(spec.model_dump(mode="json"), "lesson", errors)
     if errors:

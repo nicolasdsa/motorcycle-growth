@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import ActivityRenderer from '../activities/ActivityRenderer.vue'
 import AppIcon from '../components/AppIcon.vue'
+import ConceptMap from '../lesson/ConceptMap.vue'
 import GlossaryGrid from '../lesson/GlossaryGrid.vue'
 import QuestionPractice from '../lesson/QuestionPractice.vue'
 import { api } from '../services/api'
@@ -188,7 +189,7 @@ onBeforeUnmount(() => { window.removeEventListener('scroll', updateActiveSection
 
       <section id="activity" class="content-section activity-section observed-section"><ActivityRenderer :activity="spec.interactive_activity" :questions="spec.questions" :initial-state="progress.activity_state" @state-change="saveActivityState" @save-answer="saveAnswer" /></section>
 
-      <section id="summary" class="content-section summary-section observed-section"><p class="eyebrow"><span></span> Feche o ciclo</p><h2>Leve estas ideias com você</h2><div class="summary-grid"><div><h3>Pontos-chave</h3><ol><li v-for="(item, index) in spec.summary.key_points" :key="item"><span>{{ index + 1 }}</span>{{ item }}</li></ol></div><div><h3>Checklist de entrevista</h3><ul><li v-for="item in spec.summary.interview_checklist" :key="item"><AppIcon name="check"/>{{ item }}</li></ul></div></div><div class="sources"><h3>Fontes e limites</h3><a v-for="source in spec.sources" :key="source.id" :href="source.url" target="_blank" rel="noreferrer"><span>{{ source.type }}</span><strong>{{ source.title }}</strong><small>{{ source.organization_or_authors }} ↗</small></a><details><summary>Limitações desta explicação</summary><ul><li v-for="item in spec.limitations" :key="item">{{ item }}</li></ul></details></div><div class="next-topics"><span>Continue a trilha</span><RouterLink v-for="topic in spec.summary.next_topics" :key="topic" :to="{ name: 'home', query: { topic } }">{{ topic }} <AppIcon name="arrow"/></RouterLink></div></section>
+      <section id="summary" class="content-section summary-section observed-section"><p class="eyebrow"><span></span> Feche o ciclo</p><h2>Leve estas ideias com você</h2><div class="summary-grid"><div><h3>Pontos-chave</h3><ol><li v-for="(item, index) in spec.summary.key_points" :key="item"><span>{{ index + 1 }}</span>{{ item }}</li></ol></div><div><h3>Checklist de entrevista</h3><ul><li v-for="item in spec.summary.interview_checklist" :key="item"><AppIcon name="check"/>{{ item }}</li></ul></div></div><div class="sources"><h3>Fontes e limites</h3><a v-for="source in spec.sources" :key="source.id" :href="source.url" target="_blank" rel="noreferrer"><span>{{ source.type }}</span><strong>{{ source.title }}</strong><small>{{ source.organization_or_authors }} ↗</small></a><details><summary>Limitações desta explicação</summary><ul><li v-for="item in spec.limitations" :key="item">{{ item }}</li></ul></details></div><ConceptMap :map="spec.summary.concept_map" /><div class="next-topics"><span>Continue a trilha</span><RouterLink v-for="topic in spec.summary.next_topics" :key="topic" :to="{ name: 'home', query: { topic } }">{{ topic }} <AppIcon name="arrow"/></RouterLink></div></section>
     </article>
   </div>
 </template>

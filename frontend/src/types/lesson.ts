@@ -10,6 +10,29 @@ export type LessonCreate = {
 export type DiagramElement = { id: string; label: string; kind: string; description: string }
 export type DiagramRelation = { source: string; target: string; label: string }
 
+export type ConceptMapNode = {
+  id: string
+  label: string
+  summary: string
+  mnemonic: string
+  kind: 'core' | 'concept' | 'decision' | 'risk' | 'metric'
+}
+
+export type ConceptMapEdge = {
+  source: string
+  target: string
+  label?: string
+}
+
+export type ConceptMap = {
+  id: string
+  title: string
+  teaching_goal: string
+  nodes: ConceptMapNode[]
+  edges: ConceptMapEdge[]
+  accessible_description: string
+}
+
 export type Visualization = {
   id: string
   type: string
@@ -149,7 +172,7 @@ export type LessonSpecification = {
   }
   questions: InterviewQuestion[]
   interactive_activity: InteractiveActivity
-  summary: { key_points: string[]; interview_checklist: string[]; next_topics: string[] }
+  summary: { key_points: string[]; interview_checklist: string[]; next_topics: string[]; concept_map: ConceptMap }
   sources: Array<{ id: string; title: string; url: string; type: string; organization_or_authors: string; year?: number; supports: string[] }>
   limitations: string[]
 }

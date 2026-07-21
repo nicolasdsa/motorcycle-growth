@@ -26,6 +26,7 @@ async def create_lesson(client: AsyncClient) -> dict:
 async def test_full_lesson_progress_and_answer_flow(client: AsyncClient) -> None:
     lesson = await create_lesson(client)
     lesson_id = lesson["id"]
+    assert lesson["specification"]["summary"]["concept_map"]["nodes"]
     section_id = lesson["specification"]["sections"][0]["id"]
     question_id = lesson["specification"]["questions"][0]["id"]
 

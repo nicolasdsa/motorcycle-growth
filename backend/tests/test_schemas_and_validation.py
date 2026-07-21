@@ -19,6 +19,7 @@ def test_load_balancing_spec_is_complete_and_valid() -> None:
     assert len(spec.sections) == 4
     assert spec.tradeoffs and spec.sources and spec.questions
     assert spec.interactive_activity.type == "simulation-playground"
+    assert spec.summary.concept_map.nodes
 
 
 def test_classifier_distinguishes_specific_and_domain() -> None:
@@ -49,3 +50,9 @@ def test_rejects_executable_payload() -> None:
     with pytest.raises(LessonValidationError, match="executável proibido"):
         validate_lesson(unsafe)
 
+
+def test_rejects_concept_map_edge_with_unknown_node() -> None:
+    payload = make_spec().model_dump(mode="json")
+    payload["summary"]["concept_map"]["edges"][0]["target"] = "missing-node"
+    with pytest.raises(LessonValidationError, match="Aresta quebrada no mapa conceitual"):
+        validate_lesson(LessonSpecification.model_validate(payload))

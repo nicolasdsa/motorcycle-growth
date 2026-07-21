@@ -9,6 +9,7 @@ REGISTERED_VISUALIZATIONS = {
     VisualizationType.TIMELINE,
     VisualizationType.CODE_WALKTHROUGH,
     VisualizationType.CALLOUT,
+    VisualizationType.CONCEPT_MAP,
     VisualizationType.REQUEST_FLOW,
     VisualizationType.SERVER_CLUSTER,
     VisualizationType.LOAD_DISTRIBUTION,
@@ -25,4 +26,3 @@ REGISTERED_ACTIVITIES = {
     ActivityType.QUIZ,
     ActivityType.STEPPER,
 }
-

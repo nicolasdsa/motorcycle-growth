@@ -295,10 +295,34 @@ class InteractiveActivity(BaseModel):
     accessible_description: str = Field(min_length=10, max_length=1600)
 
 
+class ConceptMapNode(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    label: str = Field(min_length=1, max_length=48)
+    summary: str = Field(min_length=5, max_length=500)
+    mnemonic: str = Field(min_length=2, max_length=240)
+    kind: Literal["core", "concept", "decision", "risk", "metric"]
+
+
+class ConceptMapEdge(BaseModel):
+    source: str = Field(min_length=1, max_length=80)
+    target: str = Field(min_length=1, max_length=80)
+    label: str | None = Field(default=None, max_length=120)
+
+
+class ConceptMap(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=160)
+    teaching_goal: str = Field(min_length=10, max_length=600)
+    nodes: list[ConceptMapNode] = Field(min_length=6, max_length=16)
+    edges: list[ConceptMapEdge] = Field(min_length=5, max_length=28)
+    accessible_description: str = Field(min_length=10, max_length=2000)
+
+
 class Summary(BaseModel):
     key_points: list[str] = Field(min_length=1, max_length=12)
     interview_checklist: list[str] = Field(min_length=1, max_length=12)
     next_topics: list[str] = Field(default_factory=list, max_length=8)
+    concept_map: ConceptMap
 
 
 class Source(BaseModel):

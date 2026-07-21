@@ -29,6 +29,35 @@ def _alternative(
     }
 
 
+def _concept_map_for_topic(topic: str) -> dict:
+    normalized = topic.lower()
+    if "acid" in normalized or "isolamento" in normalized:
+        return {
+            "id": "map-acid-isolation",
+            "title": "Conexões entre ACID e isolamento",
+            "teaching_goal": "Conectar a transação às garantias ACID, aos níveis de isolamento e aos mecanismos que controlam concorrência.",
+            "nodes": [
+                {"id": "transaction", "label": "Transação", "summary": "Unidade de trabalho que deve preservar uma mudança coerente mesmo sob falha ou concorrência.", "mnemonic": "Tudo ou nada, com contexto.", "kind": "core"},
+                {"id": "atomicity", "label": "Atomicidade", "summary": "A operação inteira confirma ou é desfeita; estados parciais não ficam visíveis como resultado final.", "mnemonic": "Ou completa, ou volta.", "kind": "concept"},
+                {"id": "consistency", "label": "Consistência", "summary": "As regras e invariantes definidos pela aplicação precisam valer antes e depois do commit.", "mnemonic": "ACID não cria a regra: ele ajuda a preservá-la.", "kind": "concept"},
+                {"id": "isolation", "label": "Isolamento", "summary": "O nível escolhido regula quais efeitos de transações concorrentes podem ser observados.", "mnemonic": "Mais isolamento costuma cobrar coordenação.", "kind": "decision"},
+                {"id": "anomalies", "label": "Anomalias", "summary": "Leitura suja, não repetível, phantom e write skew revelam interferências possíveis entre transações.", "mnemonic": "Nomeie a anomalia antes de subir o nível.", "kind": "risk"},
+                {"id": "control", "label": "Locks / MVCC", "summary": "Locks, versões e detecção de conflitos são mecanismos usados pelo banco para implementar isolamento.", "mnemonic": "Nível é contrato; lock e MVCC são implementação.", "kind": "concept"},
+                {"id": "durability", "label": "Durabilidade", "summary": "Após o commit, recuperação e log devem manter o resultado mesmo se houver falha do processo ou da máquina.", "mnemonic": "Commit precisa sobreviver.", "kind": "metric"},
+            ],
+            "edges": [
+                {"source": "transaction", "target": "atomicity", "label": "exige"}, {"source": "transaction", "target": "consistency", "label": "preserva"}, {"source": "transaction", "target": "isolation", "label": "coordena"}, {"source": "transaction", "target": "durability", "label": "confirma"}, {"source": "isolation", "target": "anomalies", "label": "limita"}, {"source": "control", "target": "isolation", "label": "implementa"}, {"source": "control", "target": "anomalies", "label": "detecta ou bloqueia"},
+            ],
+            "accessible_description": "A transação conecta atomicidade, consistência, isolamento e durabilidade. O nível de isolamento limita anomalias de concorrência, enquanto locks e MVCC são mecanismos que o banco pode usar para implementar esse contrato.",
+        }
+    return {
+        "id": "map-lesson-closure", "title": f"Mapa de decisão: {topic}", "teaching_goal": f"Recuperar as relações causais que tornam uma explicação de {topic} clara e contextual.",
+        "nodes": [{"id": "problem", "label": "Problema", "summary": f"A pressão concreta que torna {topic} relevante.", "mnemonic": "Comece pelo porquê.", "kind": "core"}, {"id": "mechanism", "label": "Mecanismo", "summary": "A regra, o estado e os participantes que produzem o efeito.", "mnemonic": "Explique o como.", "kind": "concept"}, {"id": "assumptions", "label": "Premissas", "summary": "Condições que precisam ser verdadeiras para o benefício aparecer.", "mnemonic": "Benefício tem condições.", "kind": "decision"}, {"id": "effect", "label": "Efeito", "summary": "Resultado observável que responde ao problema inicial.", "mnemonic": "Procure a consequência.", "kind": "metric"}, {"id": "tradeoff", "label": "Trade-off", "summary": "Custo, risco ou complexidade introduzidos pela escolha.", "mnemonic": "Todo ganho cobra algo.", "kind": "risk"}, {"id": "alternative", "label": "Alternativa", "summary": "Uma opção mais simples ou diferente para comparar no mesmo contexto.", "mnemonic": "Compare antes de recomendar.", "kind": "decision"}],
+        "edges": [{"source": "problem", "target": "mechanism", "label": "motiva"}, {"source": "assumptions", "target": "mechanism", "label": "condicionam"}, {"source": "mechanism", "target": "effect", "label": "produz"}, {"source": "mechanism", "target": "tradeoff", "label": "introduz"}, {"source": "alternative", "target": "tradeoff", "label": "compara"}, {"source": "problem", "target": "alternative", "label": "também pode orientar"}],
+        "accessible_description": f"O mapa conecta o problema de {topic} ao mecanismo, às premissas necessárias, ao efeito observado, ao trade-off e a uma alternativa de comparação.",
+    }
+
+
 def _load_balancing_spec(request: LessonCreate, lesson_id: str) -> dict:
     return {
         "schema_version": "1.0",
@@ -295,6 +324,24 @@ def _load_balancing_spec(request: LessonCreate, lesson_id: str) -> dict:
             "key_points": ["Comece por demanda e gargalo", "Algoritmo depende das premissas", "Saúde muda o conjunto elegível", "Falha reduz capacidade", "Métricas fecham o ciclo de decisão"],
             "interview_checklist": ["Pergunte volume e pico", "Declare as premissas", "Compare ao menos uma alternativa", "Explique falhas", "Cite sinais operacionais", "Diga quando mudaria de decisão"],
             "next_topics": ["Health checks e service discovery", "Consistent hashing", "Backpressure", "Circuit breakers"],
+            "concept_map": {
+                "id": "map-load-balancing",
+                "title": "Conexões que fecham a decisão de balanceamento",
+                "teaching_goal": "Relacionar demanda, política de distribuição, elegibilidade, capacidade e sinais operacionais antes de recomendar uma configuração.",
+                "nodes": [
+                    {"id": "traffic", "label": "Demanda", "summary": "Volume, pico e perfil das requisições definem a pressão que o sistema precisa absorver.", "mnemonic": "Meça o pico antes de escolher a rota.", "kind": "core"},
+                    {"id": "policy", "label": "Política", "summary": "Round robin, pesos ou least connections distribuem tráfego segundo sinais e premissas diferentes.", "mnemonic": "Algoritmo é hipótese, não troféu.", "kind": "decision"},
+                    {"id": "eligible", "label": "Elegíveis", "summary": "Health checks definem quais destinos podem receber tráfego naquele instante.", "mnemonic": "Saúde decide quem entra no pool.", "kind": "concept"},
+                    {"id": "capacity", "label": "Capacidade", "summary": "CPU, conexões, dependências e limite de cada nó determinam a margem real do pool.", "mnemonic": "Somar máquinas não soma capacidade infinita.", "kind": "metric"},
+                    {"id": "latency", "label": "Latência p99", "summary": "A cauda revela fila, saturação e assimetria que uma média pode esconder.", "mnemonic": "Olhe a cauda, não só a média.", "kind": "metric"},
+                    {"id": "failure", "label": "Falha", "summary": "A retirada de um nó reduz capacidade e pode concentrar tráfego nos destinos restantes.", "mnemonic": "Falha muda o denominador.", "kind": "risk"},
+                    {"id": "observability", "label": "Métricas", "summary": "Erros, fila, saturação e distribuição por backend confirmam ou refutam a premissa da política.", "mnemonic": "Sem sinal, decisão vira palpite.", "kind": "concept"}
+                ],
+                "edges": [
+                    {"source": "traffic", "target": "policy", "label": "orienta"}, {"source": "policy", "target": "eligible", "label": "escolhe entre"}, {"source": "eligible", "target": "capacity", "label": "limita o pool"}, {"source": "capacity", "target": "latency", "label": "afeta"}, {"source": "failure", "target": "eligible", "label": "remove"}, {"source": "failure", "target": "capacity", "label": "reduz"}, {"source": "observability", "target": "policy", "label": "revisa"}, {"source": "observability", "target": "latency", "label": "mede"}
+                ],
+                "accessible_description": "O mapa parte da demanda e conecta a política de distribuição ao conjunto de destinos elegíveis. Capacidade e falhas afetam a latência p99, enquanto métricas verificam se a política continua adequada.",
+            },
         },
         "sources": [
             {"id": "source-aws", "title": "What is Elastic Load Balancing?", "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html", "type": "official-docs", "organization_or_authors": "Amazon Web Services", "supports": ["distribuição entre destinos", "health checks", "algoritmos de roteamento"]},
@@ -337,7 +384,7 @@ def _generic_spec(request: LessonCreate, lesson_id: str) -> dict:
             {"id": "generic-q2", "category": "application", "difficulty": "medium", "prompt": f"Quando você evitaria {topic}?", "expected_answer": "Quando o problema alvo não existe, as premissas não se sustentam ou custo, risco e operação superam o benefício mensurável.", "essential_points": ["contexto", "custo", "alternativa"], "differentiators": ["define sinal de revisão"], "superficial_signals": ["resposta absoluta"], "common_errors": ["ignorar restrições da equipe"], "follow_ups": ["Qual solução mais simples manteria?"]},
         ],
         "interactive_activity": {"id": "generic-activity", "type": "guided-quiz", "title": "Construa sua resposta", "teaching_goal": "Praticar uma explicação causal e contextual antes de revelar os pontos esperados.", "instructions": ["Responda com suas palavras", "Declare uma premissa", "Compare uma alternativa", "Revele os pontos esperados e revise"], "config": {"questionId": "generic-q1"}, "accessible_description": "Campo de resposta e checklist revelado sob demanda, utilizável integralmente por teclado."},
-        "summary": {"key_points": ["Problema antes da solução", "Mecanismo antes do benefício", "Premissas explícitas", "Alternativas por critérios", "Limites e sinais observáveis"], "interview_checklist": ["Defini", "Exemplifiquei", "Expliquei como funciona", "Comparei", "Nomeei um limite", "Disse quando mudaria"], "next_topics": [f"Implementação de {topic}", f"Falhas e observabilidade em {topic}"]},
+        "summary": {"key_points": ["Problema antes da solução", "Mecanismo antes do benefício", "Premissas explícitas", "Alternativas por critérios", "Limites e sinais observáveis"], "interview_checklist": ["Defini", "Exemplifiquei", "Expliquei como funciona", "Comparei", "Nomeei um limite", "Disse quando mudaria"], "next_topics": [f"Implementação de {topic}", f"Falhas e observabilidade em {topic}"], "concept_map": _concept_map_for_topic(topic)},
         "sources": [{"id": "source-fallback", "title": "Computer Science Curricula 2023", "url": "https://csed.acm.org/", "type": "official-docs", "organization_or_authors": "ACM, IEEE Computer Society e AAAI", "year": 2023, "supports": ["estrutura ampla de áreas de computação e resultados de aprendizagem"]}],
         "limitations": ["Esta é uma trilha genérica e não substitui documentação primária específica do assunto.", "Detalhes técnicos não sustentados por fontes especializadas foram deliberadamente omitidos."],
     }
@@ -365,4 +412,3 @@ def regenerate_section(spec: LessonSpecification, section_id: str) -> LessonSpec
             })
             return LessonSpecification.model_validate(payload)
     raise KeyError(section_id)
-
